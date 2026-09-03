@@ -1,0 +1,3 @@
+# Exclude test files from npm package — only helpers are needed at runtime
+# (exported via `./test-helpers/local-chain` and `./test-helpers/load-artifact`).
+test/*.test.js

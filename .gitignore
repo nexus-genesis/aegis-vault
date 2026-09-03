@@ -1,0 +1,36 @@
+node_modules/
+*.log
+.DS_Store
+.env
+.env.local
+.npmrc
+agents.json
+validators.json
+dist/
+build/
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Runtime data directories (auto-generated, never commit)
+data/
+certs/
+*.pem
+logs/
+
+# Archived/experimental projects (removed from tracking)
+moltbook/
+evomap/
+ai_collab/
+frontend/
+recruit-snapshots/
+testnet/
+test_scripts/
+subagents/
+plugins/
+external/
+archive/
+analytics/
+agent_platform/

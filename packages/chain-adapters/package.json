@@ -1,0 +1,42 @@
+{
+  "name": "aegis-chain-adapters",
+  "version": "0.2.2",
+  "description": "Aegis Vault cross-chain adapters — one PQC root identity derives addresses on Nexus (ng1), Ethereum (secp256k1), and Solana (ed25519). Private keys never leave the agent/browser.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./registry": "./src/registry.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "cross-chain",
+    "multi-chain",
+    "ethereum",
+    "solana",
+    "post-quantum",
+    "agent",
+    "ai-agent",
+    "self-custody"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nexus-genesis/aegis-vault.git",
+    "directory": "packages/chain-adapters"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "aegis-vault": "^0.5.0",
+    "aegis-chain-eth": "^0.3.0",
+    "aegis-chain-sol": "^0.2.2"
+  }
+}

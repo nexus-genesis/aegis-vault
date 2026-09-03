@@ -1,0 +1,41 @@
+{
+  "name": "aegis-chain-sol",
+  "version": "0.2.2",
+  "description": "Aegis Vault Solana adapter — deterministically derive a Solana keypair (ed25519) from an agent's PQC root identity, with base58 address and message signing. Private keys never leave the agent/browser.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./sol": "./src/sol.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "solana",
+    "ed25519",
+    "agent",
+    "ai-agent",
+    "post-quantum",
+    "self-custody",
+    "cross-chain"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nexus-genesis/aegis-vault.git",
+    "directory": "packages/chain-sol"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.4.0",
+    "@noble/hashes": "^1.4.0",
+    "aegis-vault": "^0.5.0"
+  }
+}

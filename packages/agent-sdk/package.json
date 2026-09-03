@@ -1,0 +1,56 @@
+{
+  "name": "aegis-agent-sdk",
+  "version": "0.3.0",
+  "description": "Aegis Vault Agent Framework — self-sovereign keys (PQC security) + coordination (tasks, reputation, governance). Private keys never leave the agent/browser.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./keys": "./src/keys.js",
+    "./coordination": "./src/coordination.js",
+    "./smart-account": "./src/smart-account.js",
+    "./message-security": "./src/message-security.js",
+    "./service-identity": "./src/service-identity.js",
+    "./transport-security": "./src/transport-security.js",
+    "./mtls-server": "./src/mtls-server.js",
+    "./store-interface": "./src/store-interface.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "agent",
+    "ai-agent",
+    "coordination",
+    "task",
+    "reputation",
+    "governance",
+    "self-custody",
+    "human-takeover",
+    "post-quantum"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nexus-genesis/aegis-vault.git",
+    "directory": "packages/agent-sdk"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "aegis-vault": "^0.5.0"
+  },
+  "peerDependencies": {
+    "aegis-chain-eth": "^0.3.0"
+  },
+  "peerDependenciesMeta": {
+    "aegis-chain-eth": {
+      "optional": true
+    }
+  }
+}

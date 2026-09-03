@@ -1,0 +1,61 @@
+# Aegis Vault — Delegated Authorization & Key Custody for AI Agents
+
+> An open security standard and reference implementation for autonomous AI agents:
+> self-custodied private keys, post-quantum signatures, and human takeover for
+> compliance. **Private keys never leave the agent or browser.**
+
+## Project Overview
+- **Type**: Agent key custody + delegated authorization layer (not a blockchain)
+- **Position**: the authorization layer between EIP-8004 (identity) and x402 (payments)
+- **Status**: Stable, test-covered; underlying crypto (@noble/post-quantum) is audited — upper-layer composition (envelope KDF, takeover, limits, sessions) is under Phase 2 audit (see docs/audit/PHASE2-AUDIT-SCOPE-SPEC.md), not yet production-attested
+- **Repository**: https://github.com/nexus-genesis/aegis-vault
+- **License**: MIT
+
+## What It Provides
+- **Self-custody**: agent private keys are generated and stored on the agent/browser and never leave the caller
+- **Post-quantum security**: CRYSTALS-Dilithium2 (NIST FIPS 204) signatures
+- **Human takeover**: tiered spend limits, approval mode, and mid-operation control-change guard for compliance
+- **Session narrowing**: derived sessions can only narrow privileges, never widen
+- **Multi-chain**: one PQC root identity → EVM (secp256k1) and Solana (ed25519) addresses
+
+## Packages (npm)
+- `aegis-vault` — security core (PQC, AES-256-GCM encryption, three-tier key derivation, custody, takeover)
+- `aegis-vault-cli` — CLI for the security core
+- `aegis-vault-mcp` — local MCP exposure of the core
+- `aegis-agent-sdk` — agent framework (self-sovereign identity + coordination)
+- `aegis-chain-eth` — EVM adapter (derive secp256k1 wallet from PQC root identity)
+- `aegis-chain-sol` — Solana adapter (derive ed25519 wallet from PQC root identity)
+- `aegis-chain-adapters` — one PQC root identity → addresses on every supported chain
+- `aegis-agent-mcp` — MCP server exposing the security & coordination tools
+
+## Architecture
+- **Signatures**: CRYSTALS-Dilithium2 (NIST FIPS 204) via @noble/post-quantum
+- **Encryption**: AES-256-GCM + PBKDF2-HMAC-SHA512 (310,000 iterations, OWASP 2023)
+- **Key derivation**: HKDF-SHA256, three-tier key hierarchy (master → operation → session/custody)
+- **Custody tokens**: HMAC-SHA256, short-lived (24h), bound to a public-key fingerprint
+- **Limits**: enforced at the signing layer (isolated signer subprocess), not just recorded
+
+## Key Documentation
+- [README.md](README.md) — Project overview
+- [Security Policy](SECURITY.md) — Security disclosure and practices
+- [Phase 2 Audit Scope](docs/audit/PHASE2-AUDIT-SCOPE-SPEC.md) — External audit spec (in flight)
+- [Agent Keys](packages/agent-keys/README.md) — Security core guide
+- [Agent SDK](packages/agent-sdk/README.md) — Framework guide
+
+## MCP (Model Context Protocol)
+`aegis-agent-mcp` — MCP Server for Claude Desktop, Cursor, Continue.
+
+### Security tools
+- `generate_agent_keys` — create a self-sovereign agent identity (keys never leave the caller)
+- `generate_keypair` / `verify_signature` — post-quantum crypto
+- `check_spend` / `takeover_guard` — human accountability
+
+## Related Keywords
+AI Agents, Autonomous Agents, Key Management, Post-Quantum Cryptography, Self-Custody,
+Human Takeover, Agent Security, Delegated Authorization, Spend Limits, MCP,
+Model Context Protocol, Multi-Agent Systems, Dilithium2, FIPS 204
+
+## Origin
+Aegis Vault continues the security core previously published as
+`nexusgenesis-agent-keys`. The former project's independent L1 chain was
+archived in 2026-09; no token, no chain, no token-value claims.

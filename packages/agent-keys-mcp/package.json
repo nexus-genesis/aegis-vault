@@ -1,0 +1,19 @@
+{
+  "name": "aegis-vault-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Aegis Vault agent-keys — zero-code key management for Claude Desktop, Cursor, LangGraph",
+  "type": "module",
+  "bin": {
+    "aegis-vault-mcp": "./src/server.js"
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "aegis-vault": "^0.5.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

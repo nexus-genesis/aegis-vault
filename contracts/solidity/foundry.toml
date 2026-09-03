@@ -1,0 +1,26 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+fs_permissions = [{ access = "read", path = "testdata" }]
+# Use the pinned solc 0.8.24 binary directly (avoids the sandbox-blocked
+# svm cache under %APPDATA%\svm that forge would otherwise touch).
+solc = "bin/solc-0.8.24.exe"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "paris"
+
+[fmt]
+line_length = 100
+tab_width = 4
+quote_style = "double"
+
+# ── Networks (Sprint 2.3 on-chain deployment) ─────────────────────────────
+# forge script script/DeploySmartAccount.s.sol --rpc-url local --broadcast
+[rpc_endpoints]
+local = "http://127.0.0.1:8545"
+sepolia = "${SEPOLIA_RPC_URL}"
+mainnet = "${MAINNET_RPC_URL}"

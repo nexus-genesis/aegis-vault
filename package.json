@@ -1,0 +1,48 @@
+{
+  "name": "aegis-vault",
+  "version": "0.1.0",
+  "description": "Aegis Vault — delegated authorization & key custody for AI agents: post-quantum root identity, tiered spend limits, human takeover, session narrowing. Complements EIP-8004 (identity) and x402 (payments).",
+  "type": "module",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "mcp-server",
+    "examples"
+  ],
+  "scripts": {
+    "start": "npm run start --workspace mcp-server",
+    "dev": "node --watch mcp-server/src/server.js",
+    "test": "npm run test --workspaces --if-present",
+    "test:release-packages": "npm run test --workspace packages/agent-keys --workspace packages/agent-sdk --workspace packages/chain-eth --workspace packages/chain-sol --workspace packages/chain-adapters --workspace mcp-server --if-present",
+    "smoke:release": "node scripts/release-smoke.mjs",
+    "sync:deny-list": "node scripts/sync-deny-list.mjs",
+    "check:deny-list": "node scripts/sync-deny-list.mjs --check",
+    "release:bump": "node scripts/release-bump.mjs",
+    "release:bump:apply": "node scripts/release-bump.mjs --apply",
+    "release:preflight": "node scripts/release-preflight.mjs"
+  },
+  "dependencies": {
+    "@octokit/rest": "^22.0.1",
+    "axios": "^1.15.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "ai-agents",
+    "agent-security",
+    "agent-custody",
+    "key-management",
+    "post-quantum",
+    "dilithium",
+    "pqc",
+    "self-custody",
+    "human-takeover",
+    "authorization",
+    "session-keys",
+    "mcp",
+    "llm",
+    "agentic"
+  ],
+  "license": "MIT"
+}

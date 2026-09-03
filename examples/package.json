@@ -1,0 +1,16 @@
+{
+  "name": "aegis-examples",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "node demo-cross-chain.mjs",
+    "e2e:smart-account": "node smart-account-e2e.mjs"
+  },
+  "dependencies": {
+    "ethers": "^6.16.0",
+    "aegis-vault": "^0.5.0",
+    "aegis-chain-adapters": "^0.2.2",
+    "aegis-chain-eth": "^0.3.0",
+    "aegis-chain-sol": "^0.2.2"
+  }
+}

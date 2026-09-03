@@ -1,0 +1,76 @@
+{
+  "name": "aegis-chain-eth",
+  "version": "0.3.0",
+  "description": "Aegis Vault Ethereum adapter — deterministically derive an ETH wallet (secp256k1) from an agent's PQC root identity, with EIP-191 signing, human-takeover spend mapping, and the on-chain Smart Account hard-policy layer (P0-5). Private keys never leave the agent/browser.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./eth": "./src/eth.js",
+    "./canonical": "./src/canonical.js",
+    "./smart-account": "./src/smart-account.js",
+    "./client": "./src/client.js",
+    "./chain": "./src/chain-connection.js",
+    "./test-helpers/local-chain": "./test/helpers/local-chain.mjs",
+    "./test-helpers/load-artifact": "./test/helpers/load-artifact.mjs"
+  },
+  "files": [
+    "src",
+    "test",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "ethereum",
+    "secp256k1",
+    "ethers",
+    "agent",
+    "ai-agent",
+    "post-quantum",
+    "self-custody",
+    "human-takeover",
+    "cross-chain"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nexus-genesis/aegis-vault.git",
+    "directory": "packages/chain-eth"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.4.0",
+    "@noble/hashes": "^1.4.0",
+    "ethers": "^6.16.0",
+    "aegis-vault": "^0.5.0",
+    "aegis-agent-sdk": "^0.3.0"
+  },
+  "peerDependencies": {
+    "@ethereumjs/block": "^10.1.2",
+    "@ethereumjs/common": "^10.1.2",
+    "@ethereumjs/statemanager": "^10.1.2",
+    "@ethereumjs/tx": "^10.1.2",
+    "@ethereumjs/util": "^10.1.2",
+    "@ethereumjs/vm": "^10.1.2"
+  },
+  "peerDependenciesMeta": {
+    "@ethereumjs/block": { "optional": true },
+    "@ethereumjs/common": { "optional": true },
+    "@ethereumjs/statemanager": { "optional": true },
+    "@ethereumjs/tx": { "optional": true },
+    "@ethereumjs/util": { "optional": true },
+    "@ethereumjs/vm": { "optional": true }
+  },
+  "devDependencies": {
+    "@ethereumjs/block": "^10.1.2",
+    "@ethereumjs/common": "^10.1.2",
+    "@ethereumjs/statemanager": "^10.1.2",
+    "@ethereumjs/tx": "^10.1.2",
+    "@ethereumjs/util": "^10.1.2",
+    "@ethereumjs/vm": "^10.1.2"
+  }
+}

@@ -1,0 +1,171 @@
+name: Publish to npm
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Target version for a coordinated bump. Empty = auto minor bump (agent-keys stays ahead via 0.6.0, rest → 0.4.x). Use e.g. 0.4.0 to force.'
+        type: string
+        required: false
+      dry_run:
+        description: 'Print what bump would change without publishing (safe). Set false to actually publish.'
+        type: boolean
+        default: true
+      environment:
+        description: 'Target发布环境（环境门禁 reviewer/approval 依据此引用）。创建 Environment（testnet/staging/production）后可在 Settings 配置 required reviewers 实现手动收敛。'
+        type: choice
+        options:
+          - staging
+          - testnet
+          - production
+        default: staging
+      profile_file:
+        description: '发布前 preflight 校验的 deployment profile 文件路径（相对仓库根，如 mcp-server/examples/profile.production.env）。留空则按 CHAIN_PROFILE env 直读校验。'
+        type: string
+        required: false
+
+jobs:
+  # Sprint 7 T4 环境门禁：发布前必先过 preflight（profile fail-closed + artifact
+  # 绑定 + store 可写性 + 版本 lockstep）与全量回归。任何 FAIL → publish 不启动。
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Release preflight (Sprint 7 T4)
+        env:
+          NEXUS_PROFILE_FILE: ${{ inputs.profile_file || '' }}
+        run: node scripts/release-preflight.mjs
+
+      - name: Full regression (released packages)
+        run: npm run test:release-packages
+        timeout-minutes: 10
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: preflight
+    environment: ${{ inputs.environment || 'production' }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Dispatch bump: align all 6 published package versions + cross-references
+      # (agent-sdk's peer `aegis-chain-eth ^0.3.0` → ^0.4.0 etc.) so npm
+      # users actually receive the on-chain Smart Account capabilities described
+      # in CHANGELOG/README (external review 2026-08-24 P0 "发布断层"). Never
+      # downgrades (agent-keys 0.5.0 → 0.6.0 guard). Tag-triggered runs skip this.
+      - name: Coordinated version bump (dispatch only)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: node scripts/release-bump.mjs ${{ inputs.dry_run != 'true' && format('--apply') || '' }} ${{ inputs.version && format('--to {0}', inputs.version) || '' }}
+
+      - name: Dry-run — show planned versions, do not publish
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}
+        run: |
+          echo "::warning::Dry-run requested — version bump previewed above, nothing published."
+          exit 0
+
+      - name: Run released package tests
+        run: npm run test:release-packages
+        timeout-minutes: 10
+
+      # Publish in dependency order:
+      # agent-keys (security core) → agent-sdk → chain-eth → chain-sol →
+      # chain-adapters → mcp-server
+      - name: Publish aegis-vault
+        working-directory: packages/agent-keys
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish aegis-agent-sdk
+        working-directory: packages/agent-sdk
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish aegis-chain-eth
+        working-directory: packages/chain-eth
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish aegis-chain-sol
+        working-directory: packages/chain-sol
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish aegis-chain-adapters
+        working-directory: packages/chain-adapters
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish aegis-agent-mcp
+        working-directory: mcp-server
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Post-publish verification: install the EXACTLY PUBLISHED versions (read
+  # from the tag's checkout, i.e. the same package.json the publish job used)
+  # from the npm registry into a fresh temp dir and run the full six-package
+  # security smoke matrix (agent-sdk sign/verify, chain-eth Smart Account
+  # INV-005/006/007, chain-sol sign/verify round-trip, chain-adapters address
+  # derivation, agent-mcp load). Pinning the versions guarantees we verify
+  # THIS tag's artifacts, not whatever happens to be `latest`.
+  registry-smoke:
+    runs-on: ubuntu-latest
+    needs: publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run registry smoke against the published versions of this tag
+        run: |
+          VERSIONS=$(node -e '
+            const fs = require("fs");
+            const pkgs = [
+              "packages/agent-keys",
+              "packages/agent-sdk",
+              "packages/chain-eth",
+              "packages/chain-sol",
+              "packages/chain-adapters",
+              "mcp-server",
+            ];
+            const vs = pkgs.map(p => JSON.parse(fs.readFileSync(p + "/package.json", "utf8")).version);
+            console.log(vs.join(" "));
+          ')
+          echo "Publishing smoke against versions: $VERSIONS"
+          node scripts/release-smoke.mjs $VERSIONS
+        timeout-minutes: 10

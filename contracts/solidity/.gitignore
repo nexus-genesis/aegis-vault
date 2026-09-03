@@ -1,0 +1,7 @@
+# Foundry build artifacts / caches — never commit
+out/
+cache/
+cache_avm/
+
+# Pinned solc binary (machine-specific, downloaded via setup instructions)
+bin/
