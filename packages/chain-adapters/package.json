@@ -1,6 +1,6 @@
 {
   "name": "aegis-chain-adapters",
-  "version": "0.2.2",
+  "version": "0.3.2",
   "description": "Aegis Vault cross-chain adapters — one PQC root identity derives addresses on Nexus (ng1), Ethereum (secp256k1), and Solana (ed25519). Private keys never leave the agent/browser.",
   "type": "module",
   "main": "src/index.js",
@@ -35,8 +35,8 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "aegis-vault": "^0.5.0",
-    "aegis-chain-eth": "^0.3.0",
-    "aegis-chain-sol": "^0.2.2"
+    "aegis-vault": "^0.6.0",
+    "aegis-chain-eth": "^0.4.0",
+    "aegis-chain-sol": "^0.3.0"
   }
 }

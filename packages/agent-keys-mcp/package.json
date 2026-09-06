@@ -11,7 +11,7 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "aegis-vault": "^0.5.0"
+    "aegis-vault": "^0.6.0"
   },
   "engines": {
     "node": ">=18"

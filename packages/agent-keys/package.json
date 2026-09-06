@@ -1,6 +1,6 @@
 {
   "name": "aegis-vault",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Aegis Vault Agent Autonomous Key Security — PQC (Dilithium2) keys, AES-256-GCM encryption, three-tier key derivation, and human takeover. Private keys never leave the agent/browser.",
   "type": "module",
   "main": "src/index.js",

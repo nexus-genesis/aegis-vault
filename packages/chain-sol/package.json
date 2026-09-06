@@ -1,6 +1,6 @@
 {
   "name": "aegis-chain-sol",
-  "version": "0.2.2",
+  "version": "0.3.2",
   "description": "Aegis Vault Solana adapter — deterministically derive a Solana keypair (ed25519) from an agent's PQC root identity, with base58 address and message signing. Private keys never leave the agent/browser.",
   "type": "module",
   "main": "src/index.js",
@@ -36,6 +36,6 @@
   "dependencies": {
     "@noble/curves": "^1.4.0",
     "@noble/hashes": "^1.4.0",
-    "aegis-vault": "^0.5.0"
+    "aegis-vault": "^0.6.0"
   }
 }

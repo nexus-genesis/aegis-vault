@@ -8,9 +8,9 @@
   },
   "dependencies": {
     "ethers": "^6.16.0",
-    "aegis-vault": "^0.5.0",
-    "aegis-chain-adapters": "^0.2.2",
-    "aegis-chain-eth": "^0.3.0",
-    "aegis-chain-sol": "^0.2.2"
+    "aegis-vault": "^0.6.0",
+    "aegis-chain-adapters": "^0.3.0",
+    "aegis-chain-eth": "^0.4.0",
+    "aegis-chain-sol": "^0.3.0"
   }
 }
