@@ -34,9 +34,11 @@ export const DECISIONS = {
 function canonicalize(obj) {
   // Deterministic JSON: stable key order → the signed preimage is reproducible
   // across processes and verifiable without our JSON implementation quirks.
+  // undefined-valued keys are omitted (standard JSON semantics), so
+  // `signature` never leaks into signed preimages.
   if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
   if (Array.isArray(obj)) return `[${obj.map(canonicalize).join(',')}]`;
-  const keys = Object.keys(obj).sort();
+  const keys = Object.keys(obj).filter((k) => obj[k] !== undefined).sort();
   return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalize(obj[k])}`).join(',')}}`;
 }
 
@@ -128,6 +130,9 @@ export function createX402Guardrail(options = {}) {
     }
 
     // Small-auto (or unlimited): build the signed authorization snapshot.
+    // The snapshot is SELF-CONTAINED evidence: signature embedded as a field
+    // (excluded from the signed preimage), while also returned at top level
+    // for callers that prefer the pair form.
     const at = Date.now();
     const snapshot = {
       v: GUARDRAIL_VERSION,
@@ -147,6 +152,7 @@ export function createX402Guardrail(options = {}) {
     };
     const preimage = canonicalize({ ...snapshot, signature: undefined });
     const signature = await sign(preimage);
+    snapshot.signature = signature;
 
     return {
       decision: DECISIONS.ALLOW,

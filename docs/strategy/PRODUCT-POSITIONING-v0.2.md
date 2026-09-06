@@ -6,7 +6,7 @@
 > 授权护栏、责任与合规应用层。
 >
 > 基线：aegis-vault（原 nexusgenesis-agent-keys）+ SmartAccount v0.2 · 前版 v0.1 定位已推翻
-> 保存日期：2026-09-06 · 状态：Stage 0 已完成（改名迁移 + npm 8 包发布）
+> 保存日期：2026-09-06 · 状态：Stage 1 已完成（2026-09-06, commit 75d2241）· Stage 2 进行中（ERC-8004/AP2 绑定已落地，design partner 外联启动）
 
 ---
 

@@ -1,0 +1,26 @@
+{
+  "name": "aegis-guardrail-ap2",
+  "version": "0.1.0",
+  "description": "Aegis Vault — AP2 (Agent Payments Protocol) mandate co-signing: serialize a signed Aegis authorization snapshot into AP2-shaped Checkout/Payment Mandate payloads with a verifiable guardrail co-signature. Format adapters are pluggable while the spec migrates.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "ap2",
+    "agent-payments-protocol",
+    "mandate",
+    "x402",
+    "aegis-vault",
+    "guardrail",
+    "ai-agents"
+  ],
+  "dependencies": {
+    "ethers": "^6.16.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

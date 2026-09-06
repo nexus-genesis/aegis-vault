@@ -70,6 +70,15 @@ test('daily cap accounts for spentToday', async () => {
   assert.match(result.reason, /maxDaily/);
 });
 
+test('snapshot is self-contained evidence: signature embedded (and excluded from preimage)', async () => {
+  const guardrail = createX402Guardrail({ agentId: 'agent-1', policy: limitPolicy, sign: hmacSigner() });
+  const result = await guardrail.evaluatePayment(basePayment);
+  assert.equal(result.snapshot.signature, result.signature,
+    'snapshot must carry its own signature for downstream binders (AP2 mandate)');
+  assert.ok(!result.snapshotPreimage.includes('"signature"'),
+    'signature must be excluded from the signed preimage');
+});
+
 test('medium tier yields HOLD with timelock metadata (not an executable snapshot)', async () => {
   const guardrail = createX402Guardrail({ agentId: 'agent-1', policy: limitPolicy, sign: hmacSigner() });
   const result = await guardrail.evaluatePayment({ ...basePayment, amount: '50' });

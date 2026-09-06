@@ -4,13 +4,17 @@
   "type": "module",
   "scripts": {
     "demo": "node demo-cross-chain.mjs",
-    "e2e:smart-account": "node smart-account-e2e.mjs"
+    "e2e:smart-account": "node smart-account-e2e.mjs",
+    "e2e:guardrail": "node guardrail-e2e.mjs"
   },
   "dependencies": {
     "ethers": "^6.16.0",
     "aegis-vault": "^0.6.0",
     "aegis-chain-adapters": "^0.3.0",
     "aegis-chain-eth": "^0.4.0",
-    "aegis-chain-sol": "^0.3.0"
+    "aegis-chain-sol": "^0.3.0",
+    "aegis-guardrail-x402": "^0.1.0",
+    "aegis-guardrail-ap2": "^0.1.0",
+    "aegis-registry-8004": "^0.1.0"
   }
 }
