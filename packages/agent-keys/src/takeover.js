@@ -181,6 +181,9 @@ export function checkSpendAllowedTiered(config, ctx = {}) {
 
 // ─── W2-3: Policy Time-lock ───────────────────────────────────────────────
 
+/** Key used by PolicyTimelock to persist its pending-changes list in a store. */
+export const POLICY_TIMELOCK_STORE_KEY = 'policy:timelock:pending';
+
 /**
  * Policy time-lock system.
  *
@@ -195,6 +198,16 @@ export function checkSpendAllowedTiered(config, ctx = {}) {
  *   const changes = timelock.getEffectiveChanges();  // → [applied changes]
  *   // Or revoke during the window:
  *   timelock.revokeChange(changeId);
+ *
+ * PERSISTENCE (PHASE2 audit fix): without a store, pending changes live in a
+ * process-local Map and a restart silently drops every scheduled change —
+ * i.e. an attacker who can crash the Keeper can void its policy time-locks.
+ * Pass a store ({ read(key) → value|null, write(key, value) }, the
+ * aegis-agent-sdk store-interface semantics) to survive restarts:
+ *   new PolicyTimelock(48h, { store: createSqliteStore({ file }) })
+ * Store failures propagate (fail-closed): a schedule that could not be
+ * persisted must abort, because an unpersisted time-lock is a policy change
+ * waiting to be lost.
  */
 export class PolicyTimelock {
   /**
@@ -204,6 +217,8 @@ export class PolicyTimelock {
    *   Falls back to the POLICY_WEBHOOK_URL environment variable.
    *   A time-lock only buys a处置 window; an alert is what makes humans
    *   actually look — completing the detect → delay → respond loop.
+   * @param {{ read: (key: string) => any, write: (key: string, value: any) => any }} [options.store]
+   *   Optional durable store for pending changes (restart-safe time-locks).
    */
   constructor(policyTimelockMs = POLICY_TIMELOCK_MS, options = {}) {
     if (typeof policyTimelockMs !== 'number' || policyTimelockMs < 0) {
@@ -218,6 +233,51 @@ export class PolicyTimelock {
     /** @type {Array<(event: object) => void>} */
     this._notifiers = [];
     this._webhookUrl = (options.webhookUrl || process.env.POLICY_WEBHOOK_URL || null);
+    this._store = (options.store && typeof options.store === 'object') ? options.store : null;
+    if (this._store && (typeof this._store.read !== 'function' || typeof this._store.write !== 'function')) {
+      throw new TypeError('store must implement read(key) and write(key, value)');
+    }
+    if (this._store) this._restore();
+  }
+
+  /** Rehydrate pending changes from the durable store (once, at construction). */
+  _restore() {
+    let persisted;
+    try {
+      persisted = this._store.read(POLICY_TIMELOCK_STORE_KEY);
+    } catch (err) {
+      throw new Error(`PolicyTimelock: failed to read persisted pending changes: ${err.message}`);
+    }
+    if (!persisted) return;
+    if (!Array.isArray(persisted)) {
+      throw new Error('PolicyTimelock: persisted pending changes are malformed (fail-closed)');
+    }
+    for (const change of persisted) {
+      if (
+        change && typeof change === 'object' &&
+        typeof change.changeId === 'string' &&
+        typeof change.agentId === 'string' &&
+        change.newPolicy && typeof change.newPolicy === 'object' &&
+        Number.isFinite(change.scheduledAt) && Number.isFinite(change.createdAt)
+      ) {
+        this._pending.set(change.changeId, {
+          agentId: change.agentId,
+          newPolicy: { ...change.newPolicy },
+          scheduledAt: change.scheduledAt,
+          createdAt: change.createdAt
+        });
+      }
+    }
+  }
+
+  /** Write-through persist the current pending list. Failures propagate. */
+  _persist() {
+    if (!this._store) return;
+    const entries = [];
+    for (const [changeId, change] of this._pending) {
+      entries.push({ changeId, ...change });
+    }
+    this._store.write(POLICY_TIMELOCK_STORE_KEY, entries);
   }
 
   /**
@@ -285,6 +345,14 @@ export class PolicyTimelock {
       scheduledAt,
       createdAt: now
     });
+    try {
+      this._persist();
+    } catch (err) {
+      // Roll back the in-memory schedule: an unpersisted time-lock is a
+      // policy change waiting to be lost on restart — abort instead.
+      this._pending.delete(changeId);
+      throw err;
+    }
 
     this._emit({
       event: 'policy_change_scheduled',
@@ -315,9 +383,11 @@ export class PolicyTimelock {
     }
     if (Date.now() >= change.scheduledAt) {
       this._pending.delete(changeId);
+      this._persist();
       return { revoked: false, reason: 'change already effective' };
     }
     this._pending.delete(changeId);
+    this._persist();
     this._emit({ event: 'policy_change_revoked', agentId: change.agentId, changeId });
     return { revoked: true };
   }
@@ -346,6 +416,7 @@ export class PolicyTimelock {
         });
       }
     }
+    if (effective.length > 0) this._persist();
     return effective;
   }
 
@@ -386,7 +457,10 @@ export class PolicyTimelock {
   clearAll() {
     const count = this._pending.size;
     this._pending.clear();
-    if (count > 0) this._emit({ event: 'policy_changes_cleared', count });
+    if (count > 0) {
+      this._persist();
+      this._emit({ event: 'policy_changes_cleared', count });
+    }
     return count;
   }
 }

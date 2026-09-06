@@ -1,0 +1,33 @@
+{
+  "name": "aegis-guardrail-x402",
+  "version": "0.1.0",
+  "description": "x402 guardrail middleware — policy-check and co-sign agent payment authorizations before money moves. Powered by aegis-vault tiered spend controls.",
+  "type": "module",
+  "main": "src/index.js",
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "aegis",
+    "x402",
+    "agent",
+    "guardrail",
+    "authorization",
+    "payments"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nexus-genesis/aegis-vault.git"
+  },
+  "dependencies": {
+    "aegis-vault": "^0.6.0"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

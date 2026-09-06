@@ -22,6 +22,88 @@ const MASTER_KEY_LENGTH = 32;
 const OP_KEY_SEED_LENGTH = 32;
 const HKDF_HASH = 'sha256';
 
+/**
+ * Derivation version marker.
+ *
+ * v1 (legacy): flat HKDF info strings ('agent-op-key/<agentId>/v<n>'); the PQC
+ *   root key is used directly as the HKDF input for every purpose. Kept
+ *   byte-for-byte compatible — all existing addresses and op keys MUST keep
+ *   resolving identically (NETWORK_SALT is immutable for this reason).
+ *
+ * v2 (current): explicit two-level domain separation. The root key is first
+ *   bound to a PURPOSE domain (op-key / chain-key / snapshot …) and only then
+ *   to the per-purpose parameters. Every level of the hierarchy lives in its
+ *   own HKDF info segment, so a seed derived for one purpose can never be
+ *   replayed as another purpose's input even if the underlying info strings
+ *   of two purposes were to collide in the future (PHASE2 audit: root→sub
+ *   domain separation).
+ */
+export const DERIVATION_VERSION = 2;
+
+/** Purpose domains for v2 derivation. Each yields an independent key subtree. */
+export const DERIVATION_DOMAINS = {
+  OP_KEY: 'op-key',
+  CHAIN_KEY: 'chain-key',
+  SNAPSHOT: 'snapshot-signing'
+};
+
+/**
+ * v2 domain-separated seed derivation (two-level HKDF-SHA256).
+ *
+ * Level 1 binds the root key to the purpose domain; level 2 binds the domain
+ * seed to the concrete parameters (chain / agentId / version). NETWORK_SALT is
+ * used at both levels and stays immutable: v2 changes the INFO hierarchy only,
+ * never the salt, so legacy v1 material remains derivable forever.
+ *
+ * @param {Buffer} rootKey 32-byte root (master or PQC-derived root secret)
+ * @param {object} options
+ * @param {string} options.domain one of DERIVATION_DOMAINS (or explicit string)
+ * @param {string} [options.chain] chain id for chain-key domain ('eth'|'sol'|…)
+ * @param {string} [options.agentId] agent id (required for op-key domain)
+ * @param {number} [options.version=1] rotation version
+ * @param {number} [options.length=32] output length in bytes
+ * @returns {Promise<Buffer>} derived seed
+ */
+export async function deriveDomainSeed(rootKey, options) {
+  const { domain, chain, agentId, version = 1, length = OP_KEY_SEED_LENGTH } = options || {};
+  if (!domain || typeof domain !== 'string') {
+    throw new Error('domain is required for v2 derivation');
+  }
+  if (!isValidMasterKey(rootKey)) throw new Error('Invalid root key: must be 32 bytes');
+  if (domain === DERIVATION_DOMAINS.OP_KEY && !agentId) {
+    throw new Error('agentId is required for op-key domain derivation');
+  }
+
+  const level1 = await hkdf(rootKey, NETWORK_SALT, `aegis/v2/${domain}`);
+  const segments = [`aegis/v2/${domain}`];
+  if (chain) segments.push(chain);
+  if (agentId) segments.push(agentId);
+  segments.push(`v${version}`);
+  return hkdf(Buffer.from(level1), NETWORK_SALT, segments.join('/'));
+}
+
+function hkdf(ikm, salt, info, length = OP_KEY_SEED_LENGTH) {
+  return new Promise((resolve, reject) => {
+    crypto.hkdf(HKDF_HASH, ikm, Buffer.from(salt, 'utf8'), Buffer.from(info, 'utf8'), length, (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(Buffer.from(derivedKey));
+    });
+  });
+}
+
+/**
+ * v2 operation-key seed: domain-separated from every other key subtree.
+ * Legacy v1 keys keep deriving via deriveOpKeySeed(); new deployments and
+ * rotations should prefer this path.
+ * @param {Buffer} masterKey
+ * @param {object} options { agentId, version=1 }
+ * @returns {Promise<Buffer>} 32-byte seed
+ */
+export async function deriveOpKeySeedV2(masterKey, options) {
+  const { agentId, version = 1 } = options || {};
+  return deriveDomainSeed(masterKey, { domain: DERIVATION_DOMAINS.OP_KEY, agentId, version });
+}
+
 export const KEY_MODELS = {
   HYBRID: 'hybrid',
   SELF_SOVEREIGN: 'self-sovereign',
@@ -140,8 +222,12 @@ export async function rotateOpKey(masterKey, agentId, currentVersion) {
 
 export default {
   KEY_MODELS,
+  DERIVATION_VERSION,
+  DERIVATION_DOMAINS,
   isValidMasterKey,
   deriveOpKeySeed,
+  deriveOpKeySeedV2,
+  deriveDomainSeed,
   generateKeyPairFromSeed,
   calculateKeyFingerprint,
   generateMasterKey,

@@ -96,7 +96,12 @@ test('[MED] envelope with tampered iterations still fails decryption', () => {
   const key = Buffer.from('a'.repeat(64), 'hex');
   const env = encryptPrivateKey(key, 'correct horse battery staple');
   env.kdf.iterations = 1; // attacker tries to force a fast KDF
-  assert.throws(() => decryptPrivateKey(env, 'correct horse battery staple'), /Decryption failed|AUTH_FAILED/);
+  // v2: rejected up-front by the KDF floor (DEGRADED_KDF) — a stronger
+  // fail-closed than the old v1 behavior (slow failure via GCM auth mismatch).
+  assert.throws(
+    () => decryptPrivateKey(env, 'correct horse battery staple'),
+    (err) => err.code === 'DEGRADED_KDF'
+  );
 });
 
 // ─── Custody token tampering ─────────────────────────────────────────────
