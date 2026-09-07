@@ -60,6 +60,7 @@ const decision = checkSpendAllowedTiered(
 - Underlying crypto (`@noble/post-quantum`) is audited by the Noble team — that audit does **not** cover this repository.
 - The upper-layer composition (envelope KDF, takeover state machine, limit enforcement, session narrowing, multi-chain derivation) is **under audit** — see [docs/audit/PHASE2-AUDIT-SCOPE-SPEC.md](docs/audit/PHASE2-AUDIT-SCOPE-SPEC.md). Do not treat it as production-attested until the report is published.
 - Known open gaps are tracked in [SECURITY_GAP_ANALYSIS.md](SECURITY_GAP_ANALYSIS.md).
+- **Hard on-chain limits are EVM-first.** The SmartAccount carries per-tx / daily / account-level caps as typed on-chain reverts (INV-005/007). On Solana, limits are enforced by the guardrail (off-chain, signed snapshots + audit chain) — there is **no on-chain enforcement program yet**; treat Solana as soft-guardrail until a minimal on-chain limit program ships.
 
 ## Documentation
 
