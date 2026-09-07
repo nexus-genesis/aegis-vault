@@ -246,12 +246,27 @@ test('register() extracts agentId from the Registered event, never guesses', asy
   assert.throws(() => client._extractAgentId({ logs: [] }), /Registered event not found/);
 });
 
-test('ValidationRegistryClient builds with a raw address and exposes the spec ABI', () => {
+test('ValidationRegistryClient builds from preset validationRegistry and matches the RI v1.2 ABI', () => {
   const client = new ValidationRegistryClient({
     signerOrProvider: new ethers.JsonRpcProvider('http://127.0.0.1:1'),
-    addressOrPreset: '0xC26171A3c4e1d950000000000000000000000000' // placeholder for offline construction
+    addressOrPreset: REGISTRY_PRESETS.sepolia
   });
+  assert.equal(client.address, REGISTRY_PRESETS.sepolia.validationRegistry,
+    'preset entry must resolve to the RI-deployed Validation Registry');
   const fn = client.contract.interface.getFunction('validationRequest');
   assert.ok(fn, 'validationRequest must exist');
-  assert.equal(fn.inputs.length, 3, 'validationRequest(agentId, validatorAddress, dataURI)');
+  assert.deepEqual(
+    fn.inputs.map((i) => i.name),
+    ['validatorAddress', 'agentId', 'requestURI', 'requestHash'],
+    'RI v1.2: requestHash is a mandatory caller input, validatorAddress comes first'
+  );
+  // requestHash is mandatory and must be a 32-byte hex — rejected before any chain call
+  const bad = [1, '0xC26171A3c4e1d958cEA196A5e84B7418C58DCA2C', 'ipfs://kya', '0x1234'];
+  const good = [1, '0xC26171A3c4e1d958cEA196A5e84B7418C58DCA2C', 'ipfs://kya', '0x' + 'aa'.repeat(32)];
+  return client.requestValidation(...bad)
+    .then(() => { throw new Error('must reject malformed requestHash'); })
+    .catch((e) => { assert.ok(e instanceof TypeError); })
+    .then(() => client.requestValidation(...good))
+    .then(() => { throw new Error('offline provider must fail on send — reaching network means preflight passed'); })
+    .catch((e) => { assert.ok(!(e instanceof TypeError), 'well-formed call may only fail on network'); });
 });

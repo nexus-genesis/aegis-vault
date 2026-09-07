@@ -50,8 +50,9 @@ const agentURI = toDataUri(file);
 
 ## 诚实边界
 
-- **ABI / typed-data**：规范 v1.2 未钉死的细节（agentWallet EIP-712 消息布局、
-  Validation 事件形状）按参考实现编写，全部可通过构造参数 `abi` 覆盖。
-- **地址**：`REGISTRY_PRESETS.sepolia` 是社区参考部署（来源见注释），
-  生产使用前必须核对当期 canonical 单例地址；地址必须能链接到出处。
-- **Validation Registry**：参考部署尚未上线时不得猜测地址——客户端要求显式提供。
+- **ABI / typed-data**：函数签名已对齐 ChaosChain RI v1.2 README（2026-09-07
+  核对，含 `validationRequest` 的必填 `requestHash`）；事件形状 RI 未列明，
+  客户端避免依赖事件取值。全部 ABI 可通过构造参数 `abi` 覆盖。
+- **地址**：`REGISTRY_PRESETS.sepolia` 三地址（Identity/Reputation/
+  Validation）与 RI README「Deployed Contracts」表核对一致（含核对日期），
+  生产使用前仍需复核当期地址；地址必须能链接到出处。

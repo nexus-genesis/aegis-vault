@@ -7,10 +7,10 @@
 
 - Node ≥ 18，`aegis-registry-8004` 已安装（workspace 内自带）
 - 测试网 ETH（Sepolia faucet）与一台 RPC（公共或自有）
-- **地址核对（必做）**：`REGISTRY_PRESETS.sepolia` 指向社区参考部署
-  （github.com/ChaosChain/trustless-agents-erc-ri）。上链前用
-  `https://sepolia.etherscan.io/address/<addr>#code` 核对部署与验证状态，
-  并核对其 README 当期地址。地址变化时改 preset 或显式传入。
+- **地址核对（必做）**：`REGISTRY_PRESETS.sepolia` 三地址已于 2026-09-07
+  与 ChaosChain RI README「Deployed Contracts」表核对一致
+  （github.com/ChaosChain/trustless-agents-erc-ri）。上链前仍建议用
+  `https://sepolia.etherscan.io/address/<addr>#code` 复核部署与验证状态。
 
 ## 步骤
 
@@ -63,13 +63,22 @@ await client.setCommitment(agentId, METADATA_KEYS.AUDIT_CHAIN_HEAD, auditChainHe
 
 ### 4. 请求第三方验证（Validation Registry，可选增强）
 
-Validation Registry 在参考部署上线前**不猜测地址**；拿到地址后：
+Validation Registry 已由 RI 部署到 Sepolia（地址经 README 核对，
+2026-09-07：`0xC26171A3c4e1d958cEA196A5e84B7418C58DCA2C`，已含于
+`REGISTRY_PRESETS.sepolia`）。注意 RI v1.2 的 `validationRequest`
+要求**调用方自行生成 32 字节 `requestHash`**（必填输入，非链上派生）：
 
 ```js
-import { ValidationRegistryClient } from 'aegis-registry-8004/clients';
-const vr = new ValidationRegistryClient({ signerOrProvider: wallet, addressOrPreset: validationRegistryAddress });
-const dataURI = toDataUri({ agentRegistry: registry, agentId, kyaUri, kyaCommitment: commitment });
-const requestHash = await vr.requestValidation(agentId, validatorAddress, dataURI);
+import { ValidationRegistryClient, REGISTRY_PRESETS } from 'aegis-registry-8004/clients';
+import { randomBytes } from 'node:crypto';
+
+const vr = new ValidationRegistryClient({
+  signerOrProvider: wallet,
+  addressOrPreset: REGISTRY_PRESETS.sepolia   // 用 preset 的 validationRegistry
+});
+const requestHash = '0x' + randomBytes(32).toString('hex'); // 调用方生成并自存
+await vr.requestValidation(validatorAddress, agentId, dataURI, requestHash);
+// 之后 vr.status(requestHash) 查询验证结果（response 0-100 + tag）
 ```
 
 ### 5. 验证（校验方视角）

@@ -14,9 +14,13 @@
 import { Contract } from 'ethers';
 
 /**
- * ABI fragments per EIP-8004 Jan 2026 (v1.2). Overridable per-instance:
- * the spec is fresh and fragments may be revised — pass `abi` in options
- * rather than forking this file.
+ * ABIs aligned to the ChaosChain reference implementation (Jan 2026 spec,
+ * v1.2), cross-checked against the RI README function signatures.
+ * Verified on-chain addresses live in REGISTRY_PRESETS below.
+ * Event names are NOT listed in the RI README — we therefore avoid
+ * relying on events for return values where the RI instead takes or
+ * returns values explicitly (e.g. validationRequest's mandatory
+ * requestHash comes from the caller, not from a receipt).
  */
 export const IDENTITY_REGISTRY_ABI = [
   'function register(string agentURI) returns (uint256 agentId)',
@@ -26,25 +30,26 @@ export const IDENTITY_REGISTRY_ABI = [
   'function getMetadata(uint256 agentId, string metadataKey) view returns (bytes)',
   'function setAgentWallet(uint256 agentId, address newWallet, uint256 deadline, bytes signature)',
   'function getAgentWallet(uint256 agentId) view returns (address)',
+  'function unsetAgentWallet(uint256 agentId)',
   'function ownerOf(uint256 agentId) view returns (address)',
   'function tokenURI(uint256 agentId) view returns (string)',
-  'event Registered(uint256 indexed agentId, string agentURI, address indexed owner)',
-  'event URIUpdated(uint256 indexed agentId, string newURI, address indexed updatedBy)',
-  'event MetadataSet(uint256 indexed agentId, string indexed indexedMetadataKey, string metadataKey, bytes metadataValue)'
+  'event Registered(uint256 indexed agentId, string agentURI, address indexed owner)'
 ];
 
 export const VALIDATION_REGISTRY_ABI = [
-  'function validationRequest(uint256 agentId, address validatorAddress, string dataURI) returns (bytes32 requestHash)',
-  'function validationResponse(bytes32 requestHash, uint8 score, string responseURI, bytes32 responseHash)',
-  'function getValidationStatus(bytes32 requestHash) view returns (uint256 agentId, address validatorAddress, bool isSet, uint256 lastUpdateInBlock, uint8 score, bytes32 responseHash)',
-  'event ValidationRequested(uint256 indexed agentId, address indexed validatorAddress, bytes32 indexed requestHash, string dataURI)',
-  'event ValidationResponse(bytes32 indexed requestHash, address indexed validatorAddress, uint256 indexed agentId, uint8 score, string responseURI, bytes32 responseHash)'
+  // RI v1.2: requestHash is MANDATORY caller input (not derived on-chain)
+  'function validationRequest(address validatorAddress, uint256 agentId, string requestURI, bytes32 requestHash)',
+  'function validationResponse(bytes32 requestHash, uint8 response, string responseURI, bytes32 responseHash, string tag)',
+  'function getValidationStatus(bytes32 requestHash) view returns (address validator, uint256 agentId, uint8 response, bytes32 responseHash, string tag, uint256 lastUpdate)',
+  'function getSummary(uint256 agentId, address[] validators, string tag) view returns (uint64 count, uint8 avgResponse)'
 ];
 
 /**
- * Community reference deployments (ChaosChain RI, Jan 2026 spec, Sepolia).
- * Verify against the current reference implementation before production use;
- * per-chain singleton addresses must always be linked to their source.
+ * Community reference deployment (ChaosChain RI, Jan 2026 spec v1.2,
+ * Ethereum Sepolia). Addresses cross-checked against the RI README
+ * "Deployed Contracts" table (2026-09-07):
+ *   https://github.com/ChaosChain/trustless-agents-erc-ri
+ * Re-verify before production use; addresses must always link to their source.
  */
 export const REGISTRY_PRESETS = {
   sepolia: {
@@ -52,16 +57,17 @@ export const REGISTRY_PRESETS = {
     namespace: 'eip155',
     identityRegistry: '0xf66e7CBdAE1Cb710fee7732E4e1f173624e137A7',
     reputationRegistry: '0x6E2a285294B5c74CB76d76AB77C1ef15c2A9E407',
-    source: 'github.com/ChaosChain/trustless-agents-erc-ri (Jan 2026 spec deployment)'
+    validationRegistry: '0xC26171A3c4e1d958cEA196A5e84B7418C58DCA2C',
+    source: 'github.com/ChaosChain/trustless-agents-erc-ri README (Jan 2026 spec v1.2 deployment, checked 2026-09-07)'
   }
 };
 
-function resolveAddress(addressOrPreset) {
+function resolveAddress(addressOrPreset, field = 'identityRegistry') {
   if (typeof addressOrPreset === 'string') return { address: addressOrPreset, chainId: null };
-  if (addressOrPreset && typeof addressOrPreset === 'object' && addressOrPreset.identityRegistry) {
-    return { address: addressOrPreset.identityRegistry, chainId: addressOrPreset.chainId ?? null };
+  if (addressOrPreset && typeof addressOrPreset === 'object' && addressOrPreset[field]) {
+    return { address: addressOrPreset[field], chainId: addressOrPreset.chainId ?? null };
   }
-  throw new TypeError('provide a contract address or a REGISTRY_PRESETS entry');
+  throw new TypeError(`provide a contract address or a REGISTRY_PRESETS entry with "${field}"`);
 }
 
 /**
@@ -170,28 +176,29 @@ export class IdentityRegistryClient {
  * Validation Registry client — the "anchoring" hook: request that an
  * independent validator attests the KYA bundle behind a commitment.
  *
- * @param {object} options same shape as IdentityRegistryClient; the preset's
- *   validationRegistry is intentionally absent — it had not shipped to the
- *   reference deployment at time of writing and must not be guessed.
+ * @param {object} options same shape as IdentityRegistryClient; when
+ *   passing a REGISTRY_PRESETS entry its `validationRegistry` address is used.
  */
 export class ValidationRegistryClient {
   constructor({ signerOrProvider, addressOrPreset, abi } = {}) {
-    const { address } = resolveAddress(addressOrPreset);
+    const { address } = resolveAddress(addressOrPreset, 'validationRegistry');
     this.address = address;
     this.contract = new Contract(address, abi ?? VALIDATION_REGISTRY_ABI, signerOrProvider);
   }
 
-  /** Request independent validation of `dataURI` for agentId by `validatorAddress`. */
-  async requestValidation(agentId, validatorAddress, dataURI) {
-    const tx = await this.contract.validationRequest(agentId, validatorAddress, dataURI);
-    const rc = await tx.wait();
-    for (const log of rc.logs ?? []) {
-      try {
-        const parsed = this.contract.interface.parseLog(log);
-        if (parsed && parsed.name === 'ValidationRequested') return parsed.args.requestHash;
-      } catch { /* foreign log */ }
+  /**
+   * Request independent validation of `requestURI` for agentId by
+   * `validatorAddress`. Per RI v1.2 the `requestHash` is a MANDATORY
+   * caller-generated 32-byte input (the registry does not derive it),
+   * so this method returns the same hash it submitted — no event
+   * parsing, no guessing.
+   */
+  async requestValidation(validatorAddress, agentId, requestURI, requestHash) {
+    if (!/^0x[0-9a-fA-F]{64}$/.test(requestHash)) {
+      throw new TypeError('requestHash must be a caller-generated 32-byte hex value (mandatory per RI v1.2)');
     }
-    throw new Error('ValidationRequested event not found — aborting instead of guessing the requestHash');
+    await (await this.contract.validationRequest(validatorAddress, agentId, requestURI, requestHash)).wait();
+    return requestHash;
   }
 
   async status(requestHash) {
