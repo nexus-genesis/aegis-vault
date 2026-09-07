@@ -4,13 +4,42 @@
 anvil/进程内 EVM 搬到公共测试网，完成 Stage 1 的第 4 项技术地基。
 预检 + 全流程由 `scripts/testnet-settle.mjs` 一键执行。
 
+## ✅ 已验证执行记录（2026-09-07，Sepolia）
+
+| 项 | 值 |
+|---|---|
+| RPC | `https://ethereum-sepolia-rpc.publicnode.com`（公共，无 API key，已验证） |
+| SmartAccount | [`0xa6cbDab1FaE815C8578Bff3C06DF66C1F976EA36`](https://sepolia.etherscan.io/address/0xa6cbdab1fae815c8578bff3c06df66c1f976ea36) |
+| 结算 tx | [`0xb2b148835dd11cef631fef6b1fb9d9088883c95eb01803aa3c23e11552458270`](https://sepolia.etherscan.io/tx/0xb2b148835dd11cef631fef6b1fb9d9088883c95eb01803aa3c23e11552458270)（amount=25，Executed 事件，block 11654760±） |
+| digest 交叉校验 | JS ↔ Solidity canonical payload 一致（无跨语言漂移） |
+| INV-005 | agent 自升级限额 → 链上 `SelfEscalationRejected` ✅ |
+| INV-007 | 单笔超 maxPerTx → 链上 `AmountExceedsPerTx` ✅ |
+
+> 上述地址由一次性测试密钥部署，仅作里程碑证据，请勿向其充值。
+
+### 本次执行的经验修正
+
+1. **emergency 账户不需要资金**：它只是构造参数（永不签发交易），
+   余额门槛只强制 owner（部署 gas）与 relayer（广播 gas）。脚本已修正。
+2. **Windows 下私钥注入**：避免把私钥放进命令行（会进 shell 历史）。
+   用临时 runner（CJS）从本地 secrets 文件读 key → 设置 `process.env` →
+   动态 `import()` ESM 脚本；`*>` 重定向到文件再看输出（PowerShell
+   stderr 流包装会把 node 输出撕成 NativeCommandError 噪音）。
+3. **ethers v6 序列化陷阱**：`JSON.stringify(ethers.Wallet)` 会丢掉
+   `privateKey`（原型 getter，不可枚举）——secrets 文件必须存
+   `{address, privateKey}` 纯对象。
+4. **Faucet 现状（2026-09）**：Google Cloud Web3 Faucet（0.05 ETH/24h，
+   需 Google 登录）最快；pk910 PoW faucet 无需登录但被 captcha 保护且
+   需挂机挖矿（CryptoNight，minClaim 0.05 ETH）；Alchemy 需主网
+   ≥0.001 ETH 资格。公共 RPC `publicnode.com` / `1rpc.io` 均免 key 可用。
+
 ## 0. 前置
 
 | 项 | 要求 |
 |---|---|
 | 合约 artifact | `cd contracts/solidity && forge build --use 0.8.24`（或设 `SMART_ACCOUNT_ARTIFACT`） |
 | 测试网 RPC | Sepolia / Base Sepolia 的 JSON-RPC 端点（Infura/Alchemy/公共网关均可） |
-| 三个 funded 账户 | owner / emergency / relayer 各 ≥ 0.005 测试网 ETH |
+| funded 账户 | owner / relayer 各 ≥ 0.005 测试网 ETH（emergency 不需要资金） |
 | Node | ≥ 18 |
 
 > 脚本会显式拒绝 anvil 默认私钥与 chainId 31337——真金白银的测试网

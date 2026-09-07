@@ -98,7 +98,10 @@ async function preflight() {
     const addr = new ethers.Wallet(pk).address;
     const bal = await provider.getBalance(addr);
     const eth = Number(ethers.formatEther(bal));
-    if (eth < MIN_BALANCE_ETH) {
+    // owner pays deployment, relayer pays execution — both need real gas.
+    // emergency is only a constructor argument (never signs/sends), so a
+    // funded-balance requirement there is meaningless; just report it.
+    if (role !== 'emergency' && eth < MIN_BALANCE_ETH) {
       fail(`${role} (${addr}) 余额 ${eth} ETH 不足 ${MIN_BALANCE_ETH}`, '先过测试网水龙头（Sepolia: google/alchemy/pow 水龙头均可）');
     }
     ok(`${role}: ${addr} → ${eth.toFixed(4)} ETH`);
@@ -216,6 +219,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('\n[E2E FAILED]', err.message);
+  console.error('\n[E2E FAILED]', process.env.SETTLE_DEBUG ? err.stack : err.message);
   process.exit(1);
 });
