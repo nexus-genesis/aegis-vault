@@ -35,45 +35,60 @@
 
 ## 草案 1 · Base Builder Grants（首发）
 
+> **提交方式（2026-09-07 核实）**：提名表单为 Google Form
+> （[表单链接](https://docs.google.com/forms/d/e/1FAIpQLSfXuEzmiAzRhie_z9raFCF1BXweXgVt18o-DvBuRRgyTygL2A/viewform)，
+> 来自 [paragraph 官方页](https://paragraph.com/@grants.base.eth/calling-based-builders)）。
+> Google 域需代理环境 → 人类浏览器提交。下方材料按字段组织，打开即填。
+> 资助规模 1-5 ETH，团队靠 Twitter/Farcaster/提名发现；受助需 W8/W9。
+
 **项目一句话**：aegis-vault — the authorization guardrail for x402 agent
 payments on Base.
 
-**正文（表单字段化）**
+**提交材料（复制粘贴级）**
 
+- *One-liner*: The non-custodial authorization guardrail for x402 agent
+  payments on Base — tiered spend policy, signed authorization snapshots,
+  AP2 mandate co-signing, ERC-8004 KYA anchoring. MIT, 8 npm packages.
 - *What are you building?*
-  A non-custodial authorization guardrail for x402/agentic commerce.
-  Agents paying via x402 need spend policy + verifiable evidence: our
+  Agents paying via x402 need spend policy + verifiable evidence. Our
   middleware evaluates every payment (tiered: auto-approve / revocable
   time-lock / human approval / deny), emits a signed authorization
   snapshot on ALLOW, co-signs it into AP2 mandate payloads, and anchors
   the audit hash-chain head to ERC-8004 identity metadata. Root keys
   stay inside the deployer's boundary; we never touch custody.
-- *Live product evidence*（这条是 Base 硬要求）
-  - 9 MIT-licensed npm packages published (`aegis-guardrail-x402`,
-    `aegis-guardrail-ap2`, `aegis-registry-8004`, `aegis-vault`,
-    `aegis-agent-sdk`, chain adapters), registry smoke-tested
-  - 649 tests across 9 workspaces, green
-  - On-chain E2E in-repo: SmartAccount deploy → agent session
-    registration → agent-signed intent → relayer broadcast → typed
-    rejection asserts (self-escalation, over-limit), runnable on any
-    Base RPC (`CHAIN_RPC_URL=... npm run e2e:smart-account`)
-  - x402 guardrail demo E2E (offline, 30s): `npm run e2e:guardrail`
+- *Live product evidence*（全部可独立验证）
+  - **Real settlement on Sepolia** (2026-09-07): SmartAccount
+    [0xa6cbDab1...EA36](https://sepolia.etherscan.io/address/0xa6cbdab1fae815c8578bff3c06df66c1f976ea36),
+    agent-signed intent of 25 executed by relayer in
+    [tx 0xb2b148...58270](https://sepolia.etherscan.io/tx/0xb2b148835dd11cef631fef6b1fb9d9088883c95eb01803aa3c23e11552458270)
+  - **On-chain adversarial rejections verified**: agent self-escalation →
+    `SelfEscalationRejected`; over-limit spend → `AmountExceedsPerTx`
+    (typed Solidity errors, simulated + asserted in CI-reproducible E2E)
+  - JS ↔ Solidity canonical digest cross-check passes (no schema drift)
+  - **8 MIT npm packages published** (`aegis-vault`, `aegis-agent-sdk`,
+    `aegis-chain-eth`, `aegis-chain-sol`, `aegis-chain-adapters`,
+    `aegis-agent-mcp`, `aegis-vault-cli`, `aegis-vault-mcp`), registry
+    smoke-tested; guardrail packages (`aegis-guardrail-x402`,
+    `aegis-guardrail-ap2`, `aegis-registry-8004`) in-repo, publishing
+    with next release tag
+  - 649 tests across 9 workspaces, green; every claim above is
+    reproducible from the repo in <5 min
+  - Demo E2E (offline, 30s): `npm run e2e:guardrail`; on-chain:
+    `npm run e2e:smart-account`
 - *Why Base*
   x402's volume is 90% on Base; our guardrail evaluates x402 payment
   payloads and targets Base-native USDC settlement. Demo chain:
-  base-sepolia.
+  base-sepolia; settlement evidence on Sepolia (EVM-equivalent).
 - *Milestones (90 days)*
   1. Guardrail adapter for x402 V2 header flow
      (PAYMENT-REQUIRED/PAYMENT-SIGNATURE/PAYMENT-RESPONSE) — publishable
-     middleware, testnet-verified settlement guarded end-to-end
+     middleware, guarded settlement verified end-to-end on testnet
   2. First external deployment on Base mainnet (design partner or
      open-source adopter), anchored KYA on ERC-8004 testnet registry
   3. Public dashboard: signed-snapshot explorer sample + audit
      hash-chain verification guide
-- *Budget*: $5,000 seed（按当期表单口径；如为 1-5 ETH 模式则取 3 ETH）
-  — 开源非商业化交付，无股权诉求
-- *Team*: agent-governed open-source project (nexus-genesis org),
-  public commit history, verifiable test evidence
+- *Budget*: 1-3 ETH（ nomination 表单口径），open-source, non-commercial
+- *Links*: https://github.com/nexus-genesis/aegis-vault · npm `aegis-*`
 
 **提交前核实**：当期轮次是否接受 open-source 工具类（vs 只收 DeFi app）；
 「exclusively on Base」的认定口径（我们 demo 在 base-sepolia，链适配层
@@ -102,8 +117,13 @@ payments on Base.
   format, verification protocol) is open and chain-agnostic; the
   snapshot + audit-chain format we're standardizing is reusable by any
   wallet, facilitator, or insurance protocol — not just our packages.
-- *Evidence*: repo stats as in Base draft (649 tests, on-chain E2E,
-  npm packages); no users to overclaim — adoption is the milestone.
+- *Evidence*: 8 published npm packages + 3 guardrail packages in-repo;
+  649 tests green; **Sepolia real-settlement proof** — SmartAccount
+  [0xa6cb...EA36](https://sepolia.etherscan.io/address/0xa6cbdab1fae815c8578bff3c06df66c1f976ea36)
+  with relayer-broadcast agent spend
+  ([tx 0xb2b148...58270](https://sepolia.etherscan.io/tx/0xb2b148835dd11cef631fef6b1fb9d9088883c95eb01803aa3c23e11552458270))
+  and on-chain typed rejections of self-escalation & over-limit; no
+  users to overclaim — adoption is the milestone.
 - *Milestones (2 quarters)*
   1. Open-sourced snapshot verification library for third-party
      facilitators (verify any aegis-signed authorization independently)
@@ -153,9 +173,15 @@ payments on Base.
 
 | # | 动作 | 执行者 | 依赖 | 状态 |
 |---|---|---|---|---|
-| 1 | Base 表单实际字段核对 + 提交 | agent 起草 → 人类提交（表单可能需邮箱/钱包签名） | 无 | 待办 |
-| 2 | Atlas 申请提交 | 同上 | 无 | 待办 |
-| 3 | ESP Wishlist 匹配 + proposal PDF | agent 全程 | ESP 模板 | 待办 |
-| 4 | Discussions 首帖 + RI issue | agent（org 凭证） | GitHub PAT | 待办（与 NPM_TOKEN 同批配置） |
-| 5 | x402 社区帖 | agent 起草 → 人类账号发 | 账号注册 | 待办 |
+| 1 | Base 提名表单提交（[表单](https://docs.google.com/forms/d/e/1FAIpQLSfXuEzmiAzRhie_z9raFCF1BXweXgVt18o-DvBuRRgyTygL2A/viewform)） | 人类浏览器（Google 域需代理） | 上方「提交材料」复制粘贴；提交者邮箱身份 | **材料就绪，待人类 5 分钟** |
+| 2 | Atlas 申请提交 | 人类（表单待核轮次入口） | 草案 2 | 待办 |
+| 3 | ESP Wishlist 匹配 + proposal PDF | agent 全程 | ESP 模板 | 挂起（Wishlist 空） |
+| 4 | Discussions 首帖（[#1 已发](https://github.com/nexus-genesis/aegis-vault/issues/1)）+ RI issue（[#21 已发](https://github.com/ChaosChain/trustless-agents-erc-ri/issues/21)） | agent（org 凭证） | — | **完成 2026-09-07** |
+| 5 | x402 社区帖（证据段已升级：Sepolia 结算 tx） | agent 起草 → 人类账号发 | 账号注册 | 草稿就绪 |
 | 6 | 三个通道结果回填本表 | agent | — | 持续 |
+
+> **证据基线升级记录（2026-09-07）**：里程碑 4 完成——Sepolia 真实结算
+> 全链路 PASS（部署 → session 注册 → agent 出签 → relayer 广播 →
+> 链上 Executed；INV-005/007 类型化拒绝验证）。全部 grant 材料的
+> live-product 证据从「repo 内 E2E」升级为「链上可验证 tx」。
+> 诚实修正：npm published 包数 9→8（guardrail 三包 in-repo 待发布）。
