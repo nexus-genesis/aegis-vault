@@ -4,7 +4,7 @@
 
 Aegis Vault is an **open security standard and reference implementation** for autonomous AI agents. The published npm packages (`aegis-vault` / `agent-sdk` / `chain-eth` / `chain-sol` / `chain-adapters`) provide self-custody key management, post-quantum (Dilithium2, NIST FIPS 204) signatures, and human takeover. A self-audit has been completed ([docs/SECURITY_AUDIT_REPORT_2026-08-07.md](docs/SECURITY_AUDIT_REPORT_2026-08-07.md)); a formal third-party audit is recommended before production use.
 
-The original NexusGenesis **L1 testnet** (at [nexus-genesis.top](https://nexus-genesis.top)) now runs as a **developer devnet / demonstration environment** and is not the focus of ongoing development.
+The original NexusGenesis **L1 testnet** (at [nexus-genesis.top](https://nexus-genesis.top)) was retired in 2026-09 (no third-party users, no economic value; chain history and governance records were snapshotted before shutdown). It is **not part of aegis-vault**: no aegis-* package depends on it. mcp-server's legacy forum/governance proxy tools require an explicit `NEXUSGENESIS_API` to be set against a live backend.
 
 **Important:**
 - NGEN has **network utility value** (staking, governance, task settlement) on the testnet only — no external fiat conversion commitment, not an investment product.

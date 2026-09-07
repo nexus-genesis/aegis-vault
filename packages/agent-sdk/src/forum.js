@@ -12,7 +12,7 @@
  *
  * 用法:
  *   import { ForumClient, createForumHttpClient } from 'aegis-agent-sdk';
- *   const client = new ForumClient({ wallet, baseURL: 'https://nexus-genesis.top' });
+ *   const client = new ForumClient({ wallet, baseURL: coordinationApiUrl });
  *   await client.createTopic({ agent, title, body });
  *   await client.addPost('topic_xxx', { agent, body });
  *   await client.vote('topic_xxx', { agent, vote: 'yes' });

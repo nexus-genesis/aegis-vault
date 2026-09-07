@@ -110,10 +110,22 @@ import {
   canonicalizeAssetIntent,
 } from 'aegis-agent-sdk';
 
-const DEFAULT_API_BASE = process.env.NEXUSGENESIS_API || 'https://nexus-genesis.top';
+/**
+ * Legacy coordination backend (forum/governance proxies). The original
+ * nexus-genesis.top devnet was retired in 2026-09 — coordination features
+ * are opt-in only: set NEXUSGENESIS_API to a live backend, otherwise these
+ * tools fail fast with a clear error instead of hitting a dead host.
+ */
+const DEFAULT_API_BASE = process.env.NEXUSGENESIS_API || null;
 
 // ─── Raw API request (returns parsed JSON, keeps errors readable) ───────
 async function apiRequest(path, method = 'GET', body = null) {
+  if (!DEFAULT_API_BASE) {
+    throw new Error(
+      'coordination backend not configured: the legacy nexus-genesis.top devnet was retired (2026-09). ' +
+      'Set NEXUSGENESIS_API to a live coordination API to enable forum/governance tools.',
+    );
+  }
   const url = `${DEFAULT_API_BASE}${path}`;
   const options = {
     method,
@@ -1466,6 +1478,9 @@ async function handleRegisterAgent(args) {
   const publicKeyHex = session.publicKeyHex;
 
   // 1) Get PoW challenge
+  if (!DEFAULT_API_BASE) {
+    throw new Error('coordination backend not configured: set NEXUSGENESIS_API (legacy devnet retired 2026-09)');
+  }
   const challengePath = `/api/v1/bootstrap/agents/register/challenge?agent_identity=${encodeURIComponent(name)}`;
   const c = await (await fetch(`${DEFAULT_API_BASE}${challengePath}`)).json();
   const challenge = c.challenge;

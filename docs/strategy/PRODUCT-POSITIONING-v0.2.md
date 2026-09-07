@@ -8,6 +8,7 @@
 > 基线：aegis-vault（原 nexusgenesis-agent-keys）+ SmartAccount v0.2 · 前版 v0.1 定位已推翻
 > 保存日期：2026-09-06 · 状态：Stage 1 已完成（2026-09-06, commit 75d2241）· Stage 2 进行中（ERC-8004/AP2 绑定已落地，design partner 外联启动）
 > 修订 v0.2.1（2026-09-07）：吸收外部评审——定价口径全面改非托管（评审①）、市场数字打折+Skyfire 竞品标注（②）、EVM-first 硬护栏不对称显式声明（③）、nexus-genesis.top 沙箱改造排期（④）；里程碑 1/2/3/6 已完成、4 等测试网资金、5 进行中（公告 issue #1 与 ERC-8004 上游贡献 thread RI#21 已发）
+> 修订 v0.2.2（2026-09-07）：评审④按新前提撤销——L1 停滞，nexus-genesis.top 服务器/网站停机退役；演示改走 GitHub 一键 E2E；mcp-server 遗留协调功能改 opt-in（NEXUSGENESIS_API 显式配置，死域名 fallback 已移除）
 
 ---
 
@@ -149,10 +150,12 @@ Stage 5（24 月+）   类目标准 → 战略并购退出
 5. 并行启动：谈 1 个 design partner——客户狩猎必须从 Stage 1 开始 🔄 公告 issue #1 + ERC-8004 上游贡献 thread（RI#21）已发，待首封署名外联
 6. x402 护栏中间件原型：拦截支付授权 → 会话/限额校验 → 签名快照 ✅ 2026-09-06（并超额交付 AP2 联签包 + ERC-8004 锚定包）
 
-**Stage 2 增补（2026-09-07 评审④）**：nexus-genesis.top 活体基建不关停，改造为
-**KYA/护栏沙箱演示环境**——真实环境可跑通对 design partner 拉新是现成资产；
-daily ledger 持久化（遗留待办）同时是保险支柱的 actuarial 数据源起点。
-前置条件：解决 server 进程共用数据目录的写冲突（历史教训：多进程共写导致高度漂移）。
+**Stage 2 沙箱条目撤销（2026-09-07 v0.2.2）**：nexus-genesis.top 服务器与网站随 L1
+停滞**停机退役**（无第三方用户、无经济价值，链历史/治理记录已快照）。评审④的
+「沙箱改造」按新前提作废——design partner 演示走 GitHub 仓库一键 E2E
+（进程内 LocalChain，零外部依赖，可信度高于自建沙箱）；future 官网需求
+（Stage 4）用 GitHub Pages 承载，域名与证书保留在 repo 即可。mcp-server 遗留
+forum/治理代理功能改为 opt-in（NEXUSGENESIS_API 显式配置），死域名 fallback 已移除。
 
 每个生态一个薄集成点，全部由同一个核心策略引擎驱动：
 
