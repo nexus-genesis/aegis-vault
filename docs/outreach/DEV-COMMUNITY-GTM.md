@@ -128,16 +128,22 @@ docs/runbook/ERC8004-ANCHORING.md
 
 ## D. 渠道与节奏
 
+> **执行日志（2026-09-07）**：
+> - A 已发布 → [aegis-vault#1](https://github.com/nexus-genesis/aegis-vault/issues/1)（公告 issue 形态；gh CLI 不可用且 MCP 无 Discussions API， Discussions 开启后迁移并 pin）
+> - C 已发布 → [ChaosChain/trustless-agents-erc-ri#21](https://github.com/ChaosChain/trustless-agents-erc-ri/issues/21)（以 `nexus-genesis` org 身份；提出 `kya.*` metadata 命名空间问题）
+> - RI 地址核对附带成果：Validation Registry 已部署且已验证（0xC261...CA2C）→ 发现我们默认 ABI 与 RI v1.2 有偏差（requestHash 必填/参数顺序/tag）→ 已修复并对齐（commit 39a1e54）。外联前核对上游，避免公开出丑——本条记为流程教训。
+> - B 待发（x402 社区账号需人类注册）；D3 跟进内容见 A issue 评论区计划
+
 | 渠道 | 帖子 | 时机 | 人类动作 |
 |---|---|---|---|
-| aegis-vault Discussions | A | 立即可发 | 无（org 凭证就绪后 agent 发） |
+| aegis-vault 公告（issue #1，待迁移 Discussions） | A | ✅ 已发 | 无 |
+| ChaosChain RI issue（ERC-8004） | C | ✅ 已发（RI#21） | 无 |
 | x402 Foundation builder 社区 | B | A 发出后 3 天 | 注册账号需人类邮箱 |
-| ChaosChain RI 仓库 issue（ERC-8004） | C | 立即 | 无（GitHub 凭证） |
 | Farcaster / X 技术线程 | A 的 1/10 摘要版 | 每周 1 条 | agent 可排程，账号需人类注册 |
 | ETHResearch / r/ethereum | KYA 承诺模式技术文（从 C 扩写） | C 有回应后 | 同上 |
 | Hacker News Show HN | A 英文改写（去营销化，强调「非托管+fail-closed」） | npm CI provenance 配好后（贴子会被查 GitHub） | 提交需人类账号 |
 
-> 凭证依赖（一次性）：GitHub org 的 PAT 配置到 CI（与 NPM_TOKEN 同一批网页操作）——配好后 A/C 两个发布完全自动。
+> 凭证依赖（一次性）：GitHub org 的 PAT 配置到 CI（与 NPM_TOKEN 同一批网页操作）——配好后后续发布可全自动。MCP GitHub 通道已验证可用（issues 类）。
 
 ## E. 反模式（自检清单）
 

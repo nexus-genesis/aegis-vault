@@ -17,6 +17,20 @@
 > Atlas 次之（public goods 叙事顺）；ESP 周期最长但品牌背书价值最高，
 > 作为并行长线。三者不互斥，可同时申请（各自声明即可，grant 界常规）。
 
+> **核实结果（2026-09-07，agent 实测官方页面）**：
+> 1. **Base paragraph「Builder Grants」实为提名制**：1-5 ETH，团队靠
+>    Twitter/Farcaster 发现 + 社区提名表单，不承诺回复；受助需交
+>    W8/W9（个人可签，无法人需求）。→ 行动改为：填提名表单 + 让
+>    x402/ERC-8004 生态互动者提名。
+> 2. **2026-08 的 $5k AI/x402 专项**（媒体报道）与 paragraph 页是两个
+>    程序；该专项要求「live product exclusively on Base」——需找到其
+>    官方申请入口再核（本次未定位到，列入待办）。
+> 3. **ESP Wishlist 当前为空**（官方页 "No Wishlist Available"），
+>    RFP 独立页 404 → ESP 路径暂走「Office Hours 非财务支持 + 等下一轮
+>    Wishlist」，从"长线并行"降级为"观察项"。
+> 4. **优先级修正**：Base（提名表单，立即可做）→ Atlas（需核当期轮次
+>    入口）→ ESP（挂起，监控 blog.ethereum.org funding 分类）。
+
 ---
 
 ## 草案 1 · Base Builder Grants（首发）
