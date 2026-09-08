@@ -126,89 +126,37 @@ jobs:
         run: npm run test:release-packages
         timeout-minutes: 10
 
-      # Publish in dependency order:
-      # agent-keys (security core) → agent-sdk → chain-eth → chain-sol →
-      # chain-adapters → mcp-server
-      - name: Publish aegis-vault
+      # Publish in dependency order, npm output captured to the job summary
+      # on failure — step logs are truncated for anonymous visitors
+      # ("View the raw logs" requires login), which made the first publish
+      # attempt (run 34240906601) undiagnosable. Job summaries render
+      # publicly on the run page.
+      - name: Publish 11 packages (dependency order, provenance)
         if: ${{ env.PUBLISH_ENABLED == 'true' }}
-        working-directory: packages/agent-keys
-        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish aegis-agent-sdk
-        if: ${{ env.PUBLISH_ENABLED == 'true' }}
-        working-directory: packages/agent-sdk
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish aegis-chain-eth
-        if: ${{ env.PUBLISH_ENABLED == 'true' }}
-        working-directory: packages/chain-eth
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish aegis-chain-sol
-        if: ${{ env.PUBLISH_ENABLED == 'true' }}
-        working-directory: packages/chain-sol
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish aegis-chain-adapters
-        if: ${{ env.PUBLISH_ENABLED == 'true' }}
-        working-directory: packages/chain-adapters
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish aegis-agent-mcp
-        if: ${{ env.PUBLISH_ENABLED == 'true' }}
-        working-directory: mcp-server
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # Guardrail trio + CLI/MCP (0.1.0 line). Note: these are NOT in
-      # release-bump's SCAN list — bump their versions manually before
-      # tagging, otherwise npm rejects the re-publish of an existing
-      # version (403 cannot-publish-over).
-      - name: Publish aegis-guardrail-x402
-        if: ${{ env.PUBLISH_ENABLED == 'true' }}
-        working-directory: packages/guardrail-x402
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish aegis-guardrail-ap2
-        if: ${{ env.PUBLISH_ENABLED == 'true' }}
-        working-directory: packages/guardrail-ap2
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish aegis-erc8004
-        if: ${{ env.PUBLISH_ENABLED == 'true' }}
-        working-directory: packages/registry-8004
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish aegis-vault-cli
-        if: ${{ env.PUBLISH_ENABLED == 'true' }}
-        working-directory: packages/agent-keys-cli
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish aegis-vault-mcp
-        if: ${{ env.PUBLISH_ENABLED == 'true' }}
-        working-directory: packages/agent-keys-mcp
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "npm $(npm --version) / node $(node --version) / NODE_AUTH_TOKEN set: ${NODE_AUTH_TOKEN:+yes}"
+          for p in packages/agent-keys packages/agent-sdk packages/chain-eth \
+                   packages/chain-sol packages/chain-adapters mcp-server \
+                   packages/guardrail-x402 packages/guardrail-ap2 packages/registry-8004 \
+                   packages/agent-keys-cli packages/agent-keys-mcp; do
+            name=$(node -p "require('./' + process.argv[1] + '/package.json').name" "$p")
+            if ( cd "$p" && npm publish --provenance --access public ) > /tmp/pub-out.txt 2>&1; then
+              echo "- ✅ \`$name\`" >> "$GITHUB_STEP_SUMMARY"
+              cat /tmp/pub-out.txt
+            else
+              {
+                echo "### npm publish failed: \`$name\` ($p)"
+                echo '```'
+                tail -n 60 /tmp/pub-out.txt
+                echo '```'
+                echo "_npm $(npm --version) / node $(node --version) / NODE_AUTH_TOKEN set: ${NODE_AUTH_TOKEN:+yes}_"
+              } >> "$GITHUB_STEP_SUMMARY"
+              cat /tmp/pub-out.txt
+              exit 1
+            fi
+          done
 
   # Post-publish verification: install the EXACTLY PUBLISHED versions (read
   # from the tag's checkout, i.e. the same package.json the publish job used)
