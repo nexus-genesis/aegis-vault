@@ -1,0 +1,29 @@
+{
+  "agentRegistry": "eip155:11155111:0xf66e7cbdae1cb710fee7732e4e1f173624e137a7",
+  "agentId": "31",
+  "ownerAddress": "0xe8E4ea5a03244fb7D31c3226704c5eCcE389CD1E",
+  "agentWallet": "n/a",
+  "kyaUri": "https://raw.githubusercontent.com/nexus-genesis/aegis-vault/main/docs/kya/AGENT-KYA.json",
+  "ownerFingerprint": "0x8a2106c4a30564a43e52c28746f5e7c898c0779ae7a097c7a514790bb9823fd2",
+  "ownerFingerprintNote": "keccak256(ML-DSA-44 root public key); private key held offline outside git",
+  "sessionPolicy": {
+    "type": "limit",
+    "maxPerTx": "100",
+    "maxDaily": "500",
+    "timelock": "24h",
+    "mode": "tiered"
+  },
+  "sessionPolicyHash": "0x9316c55bff369625d700ebd870300fb6d724f47ea0497e1ca1c693ad66392f7b",
+  "auditChainHead": "0xcca0a9e3e53fff862af5ed57b87e0652c6474c454cd891b61a1d52df3f125a96",
+  "auditChainNote": "v0 genesis head — per-snapshot chain lives in aegis-guardrail-x402; full audit chain is a Stage-2+ deliverable",
+  "commitment": "0x90d89064e7b0d88f1f6c0dde3671b1ad7a2d59cdd16d40ed7a6c4a9bda312015",
+  "transactions": {
+    "register": "see owner address tx history on Etherscan (Registered event, agentId 31)",
+    "kyaCommitment": "0xc9fa606ca293d809643505d01d5eef4b855c36de691de5976bce9ebd3f75e7fa",
+    "agentWallet": "0x294b38da2e3bea17b4f1c6e11a4eed94231d7fb36ae815d61ad6f8014924ed00"
+  },
+  "identityRegistry": "0xf66e7CBdAE1Cb710fee7732E4e1f173624e137A7",
+  "network": "sepolia (chainId 11155111)",
+  "anchoredAt": "2026-09-08T14:26:50.449Z",
+  "spec": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1 (Jan 2026, v1.2)"
+}

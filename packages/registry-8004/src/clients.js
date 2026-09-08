@@ -1,4 +1,4 @@
-﻿/**
+/**
  * aegis-erc8004/clients — thin ERC-8004 registry clients (ethers v6)
  *
  * Deliberately thin: the standard owns identity and validation. These
@@ -93,12 +93,12 @@ export class IdentityRegistryClient {
   /** register() with the standard metadata overload; returns the agentId. */
   async register(agentURI, metadataEntries = []) {
     const entries = metadataEntries.map((e) => ({ metadataKey: e.key, metadataValue: e.value }));
-    if (entries.length === 0) {
-      const tx = await this.contract.register(agentURI);
-      const rc = await tx.wait();
-      return this._extractAgentId(rc);
-    }
-    const tx = await this.contract.register(agentURI, entries);
+    // ethers v6: two ABI overloads share the name "register" — calling via
+    // contract.register(...) throws "ambiguous function description". Pick
+    // the overload explicitly.
+    const tx = entries.length === 0
+      ? await this.contract.getFunction('register(string)')(agentURI)
+      : await this.contract.getFunction('register(string,(string,bytes)[])')(agentURI, entries);
     const rc = await tx.wait();
     return this._extractAgentId(rc);
   }
@@ -139,14 +139,18 @@ export class IdentityRegistryClient {
    * mandates EIP-712 but does not pin the message layout; this follows the
    * reference implementation and can be overridden per deployment.
    */
-  agentWalletTypedData(agentId, newWallet, deadline, { name = 'Agent Wallet', version = '1', chainId, verifyingContract } = {}) {
+  agentWalletTypedData(agentId, newWallet, deadline, { name = 'ERC-8004 IdentityRegistry', version = '1.1', chainId, verifyingContract } = {}) {
     return {
       domain: {
         name, version,
         chainId: chainId ?? this.chainId,
         verifyingContract: verifyingContract ?? this.address
       },
-      primaryType: 'AgentWallet',
+      // RI v1.2 reference contract: the typehash is
+      // keccak("SetAgentWallet(uint256 agentId,address newWallet,uint256 deadline)")
+      // and the domain is EIP712("ERC-8004 IdentityRegistry", "1.1") — both
+      // verified against the deployed Sepolia IdentityRegistry source.
+      primaryType: 'SetAgentWallet',
       types: {
         EIP712Domain: [
           { name: 'name', type: 'string' },
@@ -154,20 +158,20 @@ export class IdentityRegistryClient {
           { name: 'chainId', type: 'uint256' },
           { name: 'verifyingContract', type: 'address' }
         ],
-        AgentWallet: [
+        SetAgentWallet: [
           { name: 'agentId', type: 'uint256' },
-          { name: 'wallet', type: 'address' },
+          { name: 'newWallet', type: 'address' },
           { name: 'deadline', type: 'uint256' }
         ]
       },
-      message: { agentId: BigInt(agentId), wallet: newWallet, deadline: BigInt(deadline) }
+      message: { agentId: BigInt(agentId), newWallet, deadline: BigInt(deadline) }
     };
   }
 
   /** Sign + submit the agentWallet update (EOA path; ERC-1271 for contracts is caller-side). */
   async setAgentWallet(agentId, newWallet, deadline, signer) {
     const typed = this.agentWalletTypedData(agentId, newWallet, deadline);
-    const signature = await signer.signTypedData(typed.domain, { AgentWallet: typed.types.AgentWallet }, typed.message);
+    const signature = await signer.signTypedData(typed.domain, { SetAgentWallet: typed.types.SetAgentWallet }, typed.message);
     return (await (await this.contract.setAgentWallet(agentId, newWallet, deadline, signature)).wait()).hash;
   }
 }
