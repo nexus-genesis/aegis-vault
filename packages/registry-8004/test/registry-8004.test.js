@@ -1,5 +1,5 @@
-/**
- * aegis-registry-8004 — Stage 2 binding tests
+﻿/**
+ * aegis-erc8004 — Stage 2 binding tests
  *
  * Scope: pure artifact construction + binding invariants + offline encoders.
  * No network is contacted — chain interaction is exercised in the runbook

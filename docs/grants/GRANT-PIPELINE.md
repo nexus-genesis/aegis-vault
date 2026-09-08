@@ -1,4 +1,4 @@
-# Grant 通道流水线（无壳路线 · 2026-09 调研口径）
+﻿# Grant 通道流水线（无壳路线 · 2026-09 调研口径）
 
 > 原则：申请内容 100% 与仓库事实对齐；每个通道标注「核实点」——提交前
 > 必须在官方页面二次确认（条款变化快，宁可多查一次）。
@@ -69,7 +69,7 @@ payments on Base.
     `aegis-chain-eth`, `aegis-chain-sol`, `aegis-chain-adapters`,
     `aegis-agent-mcp`, `aegis-vault-cli`, `aegis-vault-mcp`), registry
     smoke-tested; guardrail packages (`aegis-guardrail-x402`,
-    `aegis-guardrail-ap2`, `aegis-registry-8004`) in-repo, publishing
+    `aegis-guardrail-ap2`, `aegis-erc8004`) in-repo, publishing
     with next release tag
   - 649 tests across 9 workspaces, green; every claim above is
     reproducible from the repo in <5 min

@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "aegis-examples",
   "private": true,
   "type": "module",
@@ -15,6 +15,6 @@
     "aegis-chain-sol": "^0.3.0",
     "aegis-guardrail-x402": "^0.1.0",
     "aegis-guardrail-ap2": "^0.1.0",
-    "aegis-registry-8004": "^0.1.0"
+    "aegis-erc8004": "^0.1.0"
   }
 }

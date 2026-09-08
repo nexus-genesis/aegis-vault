@@ -1,5 +1,5 @@
-/**
- * aegis-registry-8004 — ERC-8004 (Trustless Agents) binding
+﻿/**
+ * aegis-erc8004 — ERC-8004 (Trustless Agents) binding
  *
  * Positioning (docs/strategy/PRODUCT-POSITIONING-v0.2.md §03): "绑定标准，
  * 不重定义". ERC-8004 owns agent identity (ERC-721 Identity Registry) and

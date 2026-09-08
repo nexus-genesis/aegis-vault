@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Aegis Vault — Guardrail E2E（design partner 演示 · 纯离线，零外部依赖）
  *
  * Stage 2 集成面串成一条链路，1 天 pilot 的"照着就能跑"起点：
@@ -19,7 +19,7 @@ import { createAp2MandateBuilder, snapshotHash } from 'aegis-guardrail-ap2';
 import {
   buildAgentRegistration, kyaCommitment, verifyBinding,
   agentRegistryString, toDataUri
-} from 'aegis-registry-8004';
+} from 'aegis-erc8004';
 
 const SECRET = Buffer.alloc(32, 0xa9);
 const sign = async (preimage) => crypto.createHmac('sha256', SECRET).update(preimage).digest('hex');

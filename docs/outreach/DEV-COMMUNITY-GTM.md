@@ -1,4 +1,4 @@
-# 开发者社区外联包（无壳路线 · agent 可执行 ~85%）
+﻿# 开发者社区外联包（无壳路线 · agent 可执行 ~85%）
 
 > 定位话术（全部物料统一）：
 > 「x402 解决了 settlement，AP2 定义了 mandate 格式，但两者之间的
@@ -44,7 +44,7 @@ open-source answer.
 - `aegis-guardrail-ap2` — co-signs those snapshots into AP2-shaped
   Checkout/Payment Mandate payloads. Verification is fail-closed:
   payload hash + snapshot hash + co-signature must three-way agree.
-- `aegis-registry-8004` — KYA (Know-Your-Agent) commitments anchored to
+- `aegis-erc8004` — KYA (Know-Your-Agent) commitments anchored to
   ERC-8004 identity registries via the spec's setMetadata hook.
 - `aegis-vault` core — three-tier key hierarchy (op-key / chain-key /
   snapshot domains via two-level HKDF), envelope v2 encryption with KDF
@@ -64,7 +64,7 @@ explicitly because the reference deployment hadn't shipped when we
 wrote the client; nothing here is custody.
 
 Repo: https://github.com/nexus-genesis/aegis-vault
-Packages: `aegis-guardrail-x402`, `aegis-guardrail-ap2`, `aegis-registry-8004` on npm
+Packages: `aegis-guardrail-x402`, `aegis-guardrail-ap2`, `aegis-erc8004` on npm
 
 We're looking for design partners who want the first real deployments —
 especially teams shipping x402 endpoints who need the guardrail side.

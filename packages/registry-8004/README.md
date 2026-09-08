@@ -1,4 +1,4 @@
-# aegis-registry-8004
+﻿# aegis-erc8004
 
 ERC-8004（Trustless Agents）绑定层。**绑定标准，不重定义**：身份归
 ERC-8004 的 Identity Registry，验证归 Validation Registry；本包只做
@@ -18,9 +18,9 @@ Aegis KYA（Know-Your-Agent）承诺向标准表面的锚定。
 
 ```js
 import { buildAgentRegistration, kyaCommitment, agentRegistryString, toDataUri }
-  from 'aegis-registry-8004';
+  from 'aegis-erc8004';
 import { IdentityRegistryClient, REGISTRY_PRESETS, METADATA_KEYS }
-  from 'aegis-registry-8004/clients';
+  from 'aegis-erc8004/clients';
 
 const registry = agentRegistryString(11155111, REGISTRY_PRESETS.sepolia.identityRegistry);
 

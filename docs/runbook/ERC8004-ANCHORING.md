@@ -1,11 +1,11 @@
-# Runbook · ERC-8004 锚定（KYA 承诺上链）
+﻿# Runbook · ERC-8004 锚定（KYA 承诺上链）
 
 > Stage 2 交付：把 aegis-vault 的 KYA 承诺与审计链头锚进 ERC-8004 标准表面。
 > 绑定标准，不重定义。规格依据：EIP-8004 Jan 2026（v1.2）。
 
 ## 前置
 
-- Node ≥ 18，`aegis-registry-8004` 已安装（workspace 内自带）
+- Node ≥ 18，`aegis-erc8004` 已安装（workspace 内自带）
 - 测试网 ETH（Sepolia faucet）与一台 RPC（公共或自有）
 - **地址核对（必做）**：`REGISTRY_PRESETS.sepolia` 三地址已于 2026-09-07
   与 ChaosChain RI README「Deployed Contracts」表核对一致
@@ -18,7 +18,7 @@
 
 ```js
 import { kyaCommitment, agentRegistryString, buildAgentRegistration, toDataUri }
-  from 'aegis-registry-8004';
+  from 'aegis-erc8004';
 
 const registry = agentRegistryString(chainId, identityRegistryAddress);
 const commitment = kyaCommitment({
@@ -35,7 +35,7 @@ const commitment = kyaCommitment({
 
 ```js
 import { IdentityRegistryClient, REGISTRY_PRESETS, METADATA_KEYS }
-  from 'aegis-registry-8004/clients';
+  from 'aegis-erc8004/clients';
 
 const client = new IdentityRegistryClient({
   signerOrProvider: wallet,               // ethers Signer（ funded ）
@@ -69,7 +69,7 @@ Validation Registry 已由 RI 部署到 Sepolia（地址经 README 核对，
 要求**调用方自行生成 32 字节 `requestHash`**（必填输入，非链上派生）：
 
 ```js
-import { ValidationRegistryClient, REGISTRY_PRESETS } from 'aegis-registry-8004/clients';
+import { ValidationRegistryClient, REGISTRY_PRESETS } from 'aegis-erc8004/clients';
 import { randomBytes } from 'node:crypto';
 
 const vr = new ValidationRegistryClient({
@@ -84,7 +84,7 @@ await vr.requestValidation(validatorAddress, agentId, dataURI, requestHash);
 ### 5. 验证（校验方视角）
 
 ```js
-import { verifyBinding } from 'aegis-registry-8004';
+import { verifyBinding } from 'aegis-erc8004';
 const res = verifyBinding(registrationFile, {
   agentRegistry: registry, agentId,
   kyaUri, kyaCommitment: commitment, kyaBundle: bundle

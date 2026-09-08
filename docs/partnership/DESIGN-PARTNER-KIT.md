@@ -1,4 +1,4 @@
-# Design Partner 工具包 · Stage 2
+﻿# Design Partner 工具包 · Stage 2
 
 > 目标（战略 v0.2 §07 Stage 2 门槛）：**1 个 design partner 上生产**，
 > 即「第一个外部真实限额部署」——全盘证伪点。
@@ -27,7 +27,7 @@
 |---|---|---|
 | x402 支付护栏（决策引擎 + 签名快照） | `aegis-guardrail-x402` | ~2 小时 |
 | AP2 Mandate 联签（可插拔序列化） | `aegis-guardrail-ap2` | ~2 小时 |
-| ERC-8004 身份锚定（KYA 承诺上链） | `aegis-registry-8004` + runbook | ~3 小时 |
+| ERC-8004 身份锚定（KYA 承诺上链） | `aegis-erc8004` + runbook | ~3 小时 |
 | 会话/密钥托管（三级密钥、接管、时限锁） | `aegis-vault` + `aegis-agent-sdk` | 0.5–1 天 |
 | 测试网真实结算 E2E | `scripts/testnet-settle.mjs` | 随包可跑 |
 

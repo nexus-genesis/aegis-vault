@@ -1,5 +1,5 @@
-/**
- * aegis-registry-8004/clients — thin ERC-8004 registry clients (ethers v6)
+﻿/**
+ * aegis-erc8004/clients — thin ERC-8004 registry clients (ethers v6)
  *
  * Deliberately thin: the standard owns identity and validation. These
  * clients exist to (a) mint/register agents, (b) push Aegis commitments
