@@ -44,6 +44,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # SmartAccount artifact is NOT in git (out/ is gitignored). The
+      # regression suite (smoke-e2e + mcp-server) hard-fails without it —
+      # mirror ci.yml: install Foundry and compile before any test runs.
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Forge build (solc 0.8.24)
+        working-directory: contracts/solidity
+        run: forge build --use 0.8.24
+
+      - name: Verify deny-list single source (JS ↔ Solidity fixtures)
+        run: npm run check:deny-list
+
       - name: Release preflight (Sprint 7 T4)
         env:
           NEXUS_PROFILE_FILE: ${{ inputs.profile_file || '' }}
@@ -80,6 +95,17 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Same artifact prerequisite as the preflight job: regression tests
+      # need the compiled SmartAccount, which is not in git.
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Forge build (solc 0.8.24)
+        working-directory: contracts/solidity
+        run: forge build --use 0.8.24
 
       # Dispatch bump: align all 6 published package versions + cross-references
       # (agent-sdk's peer `aegis-chain-eth ^0.3.0` → ^0.4.0 etc.) so npm
