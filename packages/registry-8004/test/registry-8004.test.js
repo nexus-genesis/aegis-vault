@@ -1,4 +1,4 @@
-﻿/**
+/**
  * aegis-erc8004 — Stage 2 binding tests
  *
  * Scope: pure artifact construction + binding invariants + offline encoders.
@@ -186,16 +186,22 @@ test('[CRITICAL] agentWalletTypedData is deterministic EIP-712 and signs over th
   const t1 = client.agentWalletTypedData(22, wallet, deadline);
   const t2 = client.agentWalletTypedData(22, wallet, deadline);
   assert.deepEqual(t1, t2);
+  // RI v1.2 reference contract domain + typehash (verified against the
+  // deployed Sepolia IdentityRegistry source, 2026-09-08).
+  assert.equal(t1.domain.name, 'ERC-8004 IdentityRegistry');
+  assert.equal(t1.domain.version, '1.1');
+  assert.equal(t1.primaryType, 'SetAgentWallet');
   assert.equal(t1.domain.verifyingContract, SEPOLIA_IR);
   assert.equal(t1.domain.chainId, CHAIN_ID);
   assert.equal(t1.message.agentId, 22n);
+  assert.equal(t1.message.newWallet, wallet);
 
-  const h1 = ethers.TypedDataEncoder.hash(t1.domain, { AgentWallet: t1.types.AgentWallet }, t1.message);
+  const h1 = ethers.TypedDataEncoder.hash(t1.domain, { SetAgentWallet: t1.types.SetAgentWallet }, t1.message);
   // Changing the wallet or deadline must change the digest
-  const h2 = ethers.TypedDataEncoder.hash(t1.domain, { AgentWallet: t1.types.AgentWallet }, { ...t1.message, deadline: deadline + 1 });
+  const h2 = ethers.TypedDataEncoder.hash(t1.domain, { SetAgentWallet: t1.types.SetAgentWallet }, { ...t1.message, deadline: deadline + 1 });
   const h3 = ethers.TypedDataEncoder.hash(
-    t1.domain, { AgentWallet: t1.types.AgentWallet },
-    { ...t1.message, wallet: '0x2222222222222222222222222222222222222222' }
+    t1.domain, { SetAgentWallet: t1.types.SetAgentWallet },
+    { ...t1.message, newWallet: '0x2222222222222222222222222222222222222222' }
   );
   assert.notEqual(h1, h2);
   assert.notEqual(h1, h3);
