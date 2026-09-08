@@ -133,6 +133,40 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # Guardrail trio + CLI/MCP (0.1.0 line). Note: these are NOT in
+      # release-bump's SCAN list — bump their versions manually before
+      # tagging, otherwise npm rejects the re-publish of an existing
+      # version (403 cannot-publish-over).
+      - name: Publish aegis-guardrail-x402
+        working-directory: packages/guardrail-x402
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish aegis-guardrail-ap2
+        working-directory: packages/guardrail-ap2
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish aegis-erc8004
+        working-directory: packages/registry-8004
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish aegis-vault-cli
+        working-directory: packages/agent-keys-cli
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish aegis-vault-mcp
+        working-directory: packages/agent-keys-mcp
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   # Post-publish verification: install the EXACTLY PUBLISHED versions (read
   # from the tag's checkout, i.e. the same package.json the publish job used)
   # from the npm registry into a fresh temp dir and run the full six-package
