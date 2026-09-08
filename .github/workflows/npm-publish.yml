@@ -61,6 +61,12 @@ jobs:
       contents: read
       packages: write
       id-token: write
+    env:
+      # Tag pushes always publish. workflow_dispatch publishes ONLY when
+      # dry_run is explicitly false — dry-run is a preview-only mode, a
+      # missing guard here would make a preview run hit the registry
+      # (403 cannot-publish-over on every already-published version).
+      PUBLISH_ENABLED: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
 
     steps:
       - uses: actions/checkout@v4
@@ -98,36 +104,42 @@ jobs:
       # agent-keys (security core) → agent-sdk → chain-eth → chain-sol →
       # chain-adapters → mcp-server
       - name: Publish aegis-vault
+        if: ${{ env.PUBLISH_ENABLED == 'true' }}
         working-directory: packages/agent-keys
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish aegis-agent-sdk
+        if: ${{ env.PUBLISH_ENABLED == 'true' }}
         working-directory: packages/agent-sdk
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish aegis-chain-eth
+        if: ${{ env.PUBLISH_ENABLED == 'true' }}
         working-directory: packages/chain-eth
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish aegis-chain-sol
+        if: ${{ env.PUBLISH_ENABLED == 'true' }}
         working-directory: packages/chain-sol
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish aegis-chain-adapters
+        if: ${{ env.PUBLISH_ENABLED == 'true' }}
         working-directory: packages/chain-adapters
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish aegis-agent-mcp
+        if: ${{ env.PUBLISH_ENABLED == 'true' }}
         working-directory: mcp-server
         run: npm publish --provenance --access public
         env:
@@ -138,30 +150,35 @@ jobs:
       # tagging, otherwise npm rejects the re-publish of an existing
       # version (403 cannot-publish-over).
       - name: Publish aegis-guardrail-x402
+        if: ${{ env.PUBLISH_ENABLED == 'true' }}
         working-directory: packages/guardrail-x402
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish aegis-guardrail-ap2
+        if: ${{ env.PUBLISH_ENABLED == 'true' }}
         working-directory: packages/guardrail-ap2
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish aegis-erc8004
+        if: ${{ env.PUBLISH_ENABLED == 'true' }}
         working-directory: packages/registry-8004
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish aegis-vault-cli
+        if: ${{ env.PUBLISH_ENABLED == 'true' }}
         working-directory: packages/agent-keys-cli
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish aegis-vault-mcp
+        if: ${{ env.PUBLISH_ENABLED == 'true' }}
         working-directory: packages/agent-keys-mcp
         run: npm publish --provenance --access public
         env:
@@ -177,6 +194,8 @@ jobs:
   registry-smoke:
     runs-on: ubuntu-latest
     needs: publish
+    # Skip when nothing was published (dispatch dry-run preview).
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
     steps:
       - uses: actions/checkout@v4
 
