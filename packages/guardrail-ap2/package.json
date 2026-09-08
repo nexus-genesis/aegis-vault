@@ -4,6 +4,10 @@
   "description": "Aegis Vault — AP2 (Agent Payments Protocol) mandate co-signing: serialize a signed Aegis authorization snapshot into AP2-shaped Checkout/Payment Mandate payloads with a verifiable guardrail co-signature. Format adapters are pluggable while the spec migrates.",
   "type": "module",
   "main": "src/index.js",
+  "files": [
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "test": "node --test"
   },
