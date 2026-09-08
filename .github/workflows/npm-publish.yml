@@ -76,6 +76,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      issues: write
     env:
       # Tag pushes always publish. workflow_dispatch publishes ONLY when
       # dry_run is explicitly false — dry-run is a preview-only mode, a
@@ -135,8 +136,12 @@ jobs:
         if: ${{ env.PUBLISH_ENABLED == 'true' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO_NAME: ${{ github.repository }}
         run: |
           echo "npm $(npm --version) / node $(node --version) / NODE_AUTH_TOKEN set: ${NODE_AUTH_TOKEN:+yes}"
+          npm whoami > /tmp/whoami.txt 2>&1 && WHOAMI_STATE="ok" || WHOAMI_STATE="FAILED"
+          echo "npm whoami ($WHOAMI_STATE): $(head -n 5 /tmp/whoami.txt)"
           for p in packages/agent-keys packages/agent-sdk packages/chain-eth \
                    packages/chain-sol packages/chain-adapters mcp-server \
                    packages/guardrail-x402 packages/guardrail-ap2 packages/registry-8004 \
@@ -154,6 +159,38 @@ jobs:
                 echo "_npm $(npm --version) / node $(node --version) / NODE_AUTH_TOKEN set: ${NODE_AUTH_TOKEN:+yes}_"
               } >> "$GITHUB_STEP_SUMMARY"
               cat /tmp/pub-out.txt
+              # Public diagnostics channel: step logs and job summaries are
+              # login-gated; issues on this public repo are readable
+              # anonymously and via API. Both prior v0.7.0 runs (34240906601,
+              # 34242536018) failed at the first package with no readable
+              # npm error anywhere.
+              {
+                echo "npm publish failed for \`$name\` ($p) on tag \`${{ github.ref_name }}\`."
+                echo
+                echo "npm whoami ($WHOAMI_STATE):"
+                echo '```'
+                cat /tmp/whoami.txt
+                echo '```'
+                echo
+                echo '```'
+                tail -n 80 /tmp/pub-out.txt
+                echo '```'
+                echo
+                echo "npm $(npm --version) / node $(node --version) / NODE_AUTH_TOKEN set: ${NODE_AUTH_TOKEN:+yes}"
+                echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                echo
+                echo "Fail-fast loop: no partial release was published to npm."
+              } > /tmp/issue-body.md
+              jq -n --arg title "npm publish failed: ${{ github.ref_name }} / $name" \
+                    --rawfile body /tmp/issue-body.md \
+                    '{title: $title, body: $body}' > /tmp/issue.json
+              code=$(curl -sS -o /tmp/issue-resp.json -w '%{http_code}' -X POST \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                --data-binary @/tmp/issue.json \
+                "https://api.github.com/repos/$GH_REPO_NAME/issues")
+              echo "diagnostics issue create: HTTP $code"
+              [ "$code" = "201" ] || cat /tmp/issue-resp.json
               exit 1
             fi
           done
