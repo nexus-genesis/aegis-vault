@@ -1,6 +1,6 @@
-﻿{
+{
   "name": "aegis-erc8004",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Aegis Vault — ERC-8004 (Trustless Agents) binding: spec-compliant agent registration files, KYA commitment anchoring, and thin clients for the Identity/Validation registries. Binds to the standard; does not redefine it.",
   "type": "module",
   "main": "src/index.js",

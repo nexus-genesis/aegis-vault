@@ -1,6 +1,6 @@
 {
   "name": "aegis-agent-sdk",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Aegis Vault Agent Framework — self-sovereign keys (PQC security) + coordination (tasks, reputation, governance). Private keys never leave the agent/browser.",
   "type": "module",
   "main": "src/index.js",
@@ -43,10 +43,10 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "aegis-vault": "^0.6.0"
+    "aegis-vault": "^0.7.0"
   },
   "peerDependencies": {
-    "aegis-chain-eth": "^0.4.0"
+    "aegis-chain-eth": "^0.5.0"
   },
   "peerDependenciesMeta": {
     "aegis-chain-eth": {

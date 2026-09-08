@@ -8,7 +8,9 @@
 ## 发版检查单（tag 触发全自动发布）
 
 1. **手动 bump 非 SCAN 包**——release-bump 的 SCAN 列表不含以下 5 包，
-   先手动同步版本（家族 lockstep：三件套随主线，cli/mcp 0.1.x 线）：
+   先手动同步版本（版本线：三件套独立 minor 线随发布列车，cli/mcp 独立
+   minor 线；首次 coordinated release 实际落点 2026-09-09：三件套 0.1.0→
+   0.2.0，cli/mcp 0.1.0→0.2.0）：
    - packages/guardrail-x402、packages/guardrail-ap2、packages/registry-8004
    - packages/agent-keys-cli、packages/agent-keys-mcp
    - 注意交叉引用：examples + cli/mcp 依赖的 `aegis-vault`/`aegis-agent-sdk`

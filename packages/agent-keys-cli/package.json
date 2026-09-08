@@ -10,7 +10,7 @@
     "src"
   ],
   "dependencies": {
-    "aegis-vault": "^0.6.0"
+    "aegis-vault": "^0.7.0"
   },
   "engines": {
     "node": ">=18"

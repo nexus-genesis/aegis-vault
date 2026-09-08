@@ -1,6 +1,6 @@
 {
   "name": "aegis-chain-eth",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Aegis Vault Ethereum adapter — deterministically derive an ETH wallet (secp256k1) from an agent's PQC root identity, with EIP-191 signing, human-takeover spend mapping, and the on-chain Smart Account hard-policy layer (P0-5). Private keys never leave the agent/browser.",
   "type": "module",
   "main": "src/index.js",
@@ -46,8 +46,8 @@
     "@noble/curves": "^1.4.0",
     "@noble/hashes": "^1.4.0",
     "ethers": "^6.16.0",
-    "aegis-vault": "^0.6.0",
-    "aegis-agent-sdk": "^0.4.0"
+    "aegis-vault": "^0.7.0",
+    "aegis-agent-sdk": "^0.5.0"
   },
   "peerDependencies": {
     "@ethereumjs/block": "^10.1.2",
