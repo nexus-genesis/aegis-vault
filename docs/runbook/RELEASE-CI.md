@@ -34,15 +34,22 @@ Actions → Publish to npm → Run workflow，保持 dry_run=true：
 
 ## 应急
 
-- **CI 401/403 on publish**：token 过期或权限丢失 → npm 网页重新生成
-  granular token（read-write）→ 更新 GitHub secret `NPM_TOKEN`
 - **403 "Two-factor authentication or granular access token with bypass
-  2fa enabled is required"**（v0.7.0 三次 run 的实际根因，2026-09-09
-  定位）：granular token 创建时未勾选 bypass 2FA，且该选项无法事后修改
-  → npm 网页重新生成 token 时勾选 bypass 2FA（或改用 classic
-  **Automation** token，该类型设计上免 OTP）→ 更新 secret 后移动 tag 重跑
-  （`git tag -f vX.Y.Z && git push -f origin vX.Y.Z`，仅当该版本确认未
-  落 npm 时可安全移动）
+  2fa enabled is required"**（v0.7.0 四次 run 的实际根因，2026-09-09，
+  诊断 issue #2/#3）：该账号状态下 granular 表单不提供 bypass 2FA 选项，
+  token 路线无法过 registry 的 2FA 策略 → 已切换 **Trusted Publishing
+  （OIDC）**：CI 侧升级 npm@11 + 移除 NODE_AUTH_TOKEN（id-token: write
+  授权），npm 侧每个包 Settings 配 Trusted Publisher——repository
+  `nexus-genesis/aegis-vault`、workflow `npm-publish.yml`、environment
+  **`production`**（必须与 publish job 的 environment 一致，否则 OIDC
+  claim 不匹配被拒）→ 配置后移动 tag 重跑（`git tag -f vX.Y.Z && git
+  push -f origin vX.Y.Z`，仅当该版本确认未落 npm 时可安全移动）
+- **publish 不再读 `NPM_TOKEN` secret**：publish job 的 setup-node 也
+  已移除 registry-url（残留 .npmrc authToken 占位符会解析成空 token、
+  遮蔽 OIDC 流程）；诊断 issue 里 `npm whoami` 失败属预期（OIDC 按
+  次发布认证，无用户 token）
+- **Trusted Publisher 缺配**：某包没配 → 该包 publish 报 401/403 且
+  错误原文会出现在自动诊断 issue 里 → npm 补配后移动 tag 重跑
 - **publish 失败但看不到日志**：step 日志/job summary 对匿名访客截断、
   job-logs API 需 admin——publish 步骤失败时会自动创建公开诊断 issue
   （含 npm 错误原文 + `npm whoami` 三态 + provenance 状态），直接读

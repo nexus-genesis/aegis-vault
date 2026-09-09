@@ -87,12 +87,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # NOTE: registry-url deliberately omitted here. With Trusted
+      # Publishing (OIDC) the publish step authenticates via the job's
+      # signed identity — a leftover .npmrc authToken placeholder from
+      # setup-node would resolve to an empty token and shadow the OIDC
+      # flow. The default registry (registry.npmjs.org) needs no config.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: npm ci
@@ -127,6 +131,22 @@ jobs:
         run: npm run test:release-packages
         timeout-minutes: 10
 
+      # Trusted publishing (OIDC): four v0.7.0 runs failed with 403
+      # "Two-factor authentication or granular access token with bypass 2fa
+      # enabled is required to publish packages" (runs 34240906601 /
+      # 34242536018 / 34287865194 / 34356555102, diagnostics issues #2 #3)
+      # — the granular form never offers a bypass grant on this account
+      # state, so no token can clear the registry's 2FA policy. npm's own
+      # recommendation (the warning shown on the token form) is Trusted
+      # Publishing: each publish authenticates via the job's signed OIDC
+      # identity (id-token: write above). No token, no 2FA, no rotation.
+      # Requires npm >= 11.5 plus one Trusted Publisher entry per package
+      # on npmjs.com: repository nexus-genesis/aegis-vault, workflow
+      # npm-publish.yml, environment production (must match the
+      # environment key on this job).
+      - name: Upgrade npm for trusted publishing (OIDC needs npm >= 11.5)
+        run: npm install -g npm@11
+
       # Publish in dependency order, npm output captured to the job summary
       # on failure — step logs are truncated for anonymous visitors
       # ("View the raw logs" requires login), which made the first publish
@@ -135,13 +155,12 @@ jobs:
       - name: Publish 11 packages (dependency order, provenance)
         if: ${{ env.PUBLISH_ENABLED == 'true' }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO_NAME: ${{ github.repository }}
         run: |
-          echo "npm $(npm --version) / node $(node --version) / NODE_AUTH_TOKEN set: ${NODE_AUTH_TOKEN:+yes}"
-          npm whoami > /tmp/whoami.txt 2>&1 && WHOAMI_STATE="ok" || WHOAMI_STATE="FAILED"
-          echo "npm whoami ($WHOAMI_STATE): $(head -n 5 /tmp/whoami.txt)"
+          echo "npm $(npm --version) / node $(node --version) / auth: trusted publishing (OIDC, no token)"
+          npm whoami > /tmp/whoami.txt 2>&1 && WHOAMI_STATE="ok" || WHOAMI_STATE="none — expected under trusted publishing (per-publish OIDC, no user token)"
+          echo "npm whoami ($WHOAMI_STATE)"
           for p in packages/agent-keys packages/agent-sdk packages/chain-eth \
                    packages/chain-sol packages/chain-adapters mcp-server \
                    packages/guardrail-x402 packages/guardrail-ap2 packages/registry-8004 \
@@ -176,7 +195,7 @@ jobs:
                 tail -n 80 /tmp/pub-out.txt
                 echo '```'
                 echo
-                echo "npm $(npm --version) / node $(node --version) / NODE_AUTH_TOKEN set: ${NODE_AUTH_TOKEN:+yes}"
+                echo "npm $(npm --version) / node $(node --version) / auth: trusted publishing (OIDC)"
                 echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                 echo
                 echo "Fail-fast loop: no partial release was published to npm."
