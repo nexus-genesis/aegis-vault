@@ -4,8 +4,9 @@
  *
  * Usage:
  *   aegis-vault generate-key <password>
- *   aegis-vault sign <hash> [--amount <amount>]
+ *   aegis-vault sign <hash-hex> [--amount <amount>]
  *   aegis-vault verify <message-hex> <signature-hex> <public-key-hex>
+ *   (hex args: 0x prefix optional, even number of hex digits)
  *   aegis-vault session create <agent-id> [--ttl <ms>] [--max-per-tx <n>]
  *   aegis-vault session check <session-json> [--contract <addr>]
  *   aegis-vault info
@@ -66,6 +67,20 @@ function print(obj) {
   console.log(JSON.stringify(obj, null, 2));
 }
 
+// Unified hex parsing: strip an optional 0x/0X prefix, then decode as hex.
+// sign/verify MUST share this — the original CLI signed the message as
+// UTF-8 text (Buffer.from(string)) while verify decoded it as hex, so a
+// signature could never round-trip (verified empirically: signed bytes
+// 30786162636431323334 vs empty decode of the same input).
+function hexToBuffer(x, label = 'value') {
+  if (typeof x !== 'string') throw new Error(`${label} must be a hex string`);
+  const clean = x.startsWith('0x') || x.startsWith('0X') ? x.slice(2) : x;
+  if (clean.length === 0) throw new Error(`${label} must not be empty`);
+  if (!/^[0-9a-fA-F]*$/.test(clean)) throw new Error(`${label} must be a hex string`);
+  if (clean.length % 2 !== 0) throw new Error(`${label} must have an even number of hex digits`);
+  return Buffer.from(clean, 'hex');
+}
+
 // ─── Commands ───────────────────────────────────────────────────────────
 
 const COMMANDS = {
@@ -77,9 +92,10 @@ const COMMANDS = {
   },
 
   async 'sign'([hashHex], { envelope, password, amount }) {
-    if (typeof hashHex !== 'string' || !/^0x[0-9a-fA-F]+$/.test(hashHex)) {
-      throw new Error('Invalid hash: must be a 0x-hex string');
+    if (typeof hashHex !== 'string' || !/^(0x|0X)?[0-9a-fA-F]+$/.test(hashHex)) {
+      throw new Error('Invalid hash: must be a hex string (0x prefix optional)');
     }
+    const msgBytes = hexToBuffer(hashHex, 'hash');
     const sharded = loadKey(envelope, password);
     if (amount !== undefined) {
       // Tiered authorization: medium tier (10-100) is NOT signed immediately —
@@ -94,7 +110,7 @@ const COMMANDS = {
         process.exit(1);
       }
     }
-    const sigHex = sharded.use(pk => signSync(hashHex, pk).toString('hex'));
+    const sigHex = sharded.use(pk => signSync(msgBytes, pk).toString('hex'));
     print({ signature: `0x${sigHex}` });
   },
 
@@ -103,9 +119,9 @@ const COMMANDS = {
       throw new Error('Usage: aegis-vault verify <message-hex> <signature-hex> <public-key-hex>');
     }
     const result = await verify(
-      Buffer.from(message, 'hex'),
-      Buffer.from(signature, 'hex'),
-      Buffer.from(publicKey, 'hex')
+      hexToBuffer(message, 'message'),
+      hexToBuffer(signature, 'signature'),
+      hexToBuffer(publicKey, 'public-key')
     );
     print({ valid: result });
   },
@@ -240,8 +256,8 @@ Usage:
 
 Commands:
   generate-key <password>          Generate a new Dilithium2 key pair
-  sign <hash>                      Sign a hash
-  verify <msg> <sig> <pubkey>     Verify a signature
+  sign <hash-hex>                  Sign a hex message/hash (0x optional)
+  verify <msg> <sig> <pubkey>      Verify a signature (all hex, 0x optional)
   session create <agent-id>        Create a session key
   session check <json>             Check session access
   info                             Get PQC algorithm info

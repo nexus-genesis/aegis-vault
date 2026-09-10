@@ -52,13 +52,28 @@ check('sign large amount denied', !sigLarge.ok && /requires human approval/i.tes
 
 // 7. sign rejects invalid hash format
 const badHash = run(['sign', 'nothex', '--envelope', 'test-key.json', '--password', 'test-password-123'], { expectFail: true });
-check('sign rejects non-0x hash', !badHash.ok && /0x-hex/i.test(badHash.out));
+check('sign rejects non-hex input', !badHash.ok && /hex string/i.test(badHash.out));
 
-// 8. verify round-trip
+// 8. verify round-trip — sign and verify now share the same hex decoding
+//    (the old test re-encoded the message as UTF-8 to work around the CLI
+//    signing text while verifying hex — that asymmetry is the fixed bug)
 const sigHex = sigJson.signature.replace(/^0x/, '');
-const msgHex = Buffer.from(hash, 'utf-8').toString('hex');
-const ver = run(['verify', msgHex, sigHex, genOut.publicKey.replace(/^0x/, '')]);
+const ver = run(['verify', hash, sigHex, genOut.publicKey.replace(/^0x/, '')]);
 check('verify round-trip', JSON.parse(ver.out).valid === true);
+
+// 8b. round-trip accepts 0x-prefixed signature/publicKey too
+const ver0x = run(['verify', hash, sigJson.signature, `0x${genOut.publicKey}`]);
+check('verify round-trip with 0x prefixes', JSON.parse(ver0x.out).valid === true);
+
+// 8c. tampered message must fail
+const verBad = run(['verify', '0x' + 'ab'.repeat(31) + 'ac', sigHex, genOut.publicKey.replace(/^0x/, '')]);
+check('verify detects tampered message', JSON.parse(verBad.out).valid === false);
+
+// 8d. odd-length and empty hex rejected
+const oddHex = run(['verify', 'abc', sigHex, genOut.publicKey], { expectFail: true });
+check('verify rejects odd-length hex', !oddHex.ok && /even number/i.test(oddHex.out));
+const emptyHex = run(['verify', '0x', sigHex, genOut.publicKey], { expectFail: true });
+check('verify rejects empty hex', !emptyHex.ok && /not be empty/i.test(emptyHex.out));
 
 // 9. session create works with full generate-key file (unwrap fix)
 const sess = run(['session', 'create', 'agent-e2e', '--envelope', 'test-key.json', '--password', 'test-password-123', '--max-per-tx', '100']);
