@@ -170,12 +170,33 @@ jobs:
               echo "- ✅ \`$name\`" >> "$GITHUB_STEP_SUMMARY"
               cat /tmp/pub-out.txt
             else
+              # OIDC diagnostics — npm's trusted publishing silently skips on
+              # ANY failure (try/catch-all in lib/utils/oidc.js), writing the
+              # reason only to the runner's debug log. Surface all three
+              # silent-skip branches: (a) missing id-token env vars (job
+              # permissions), (b) token exchange rejected by npm (trusted
+              # publisher config mismatch / publish not allowed), (c) wrong
+              # registry/audience resolution.
+              {
+                echo "ACTIONS_ID_TOKEN_REQUEST_URL present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
+                echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN present: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}"
+                echo "npm registry: $(npm config get registry)"
+                for L in $(ls -t /home/runner/.npm/_logs/*-debug-0.log 2>/dev/null | head -n 3); do
+                  echo "--- $(basename "$L") ---"
+                  grep -ai 'oidc' "$L" | tail -n 40 || true
+                done
+              } > /tmp/oidc-diag.txt
               {
                 echo "### npm publish failed: \`$name\` ($p)"
                 echo '```'
                 tail -n 60 /tmp/pub-out.txt
                 echo '```'
                 echo "_npm $(npm --version) / node $(node --version) / NODE_AUTH_TOKEN set: ${NODE_AUTH_TOKEN:+yes}_"
+                echo
+                echo '### OIDC diagnostics'
+                echo '```'
+                cat /tmp/oidc-diag.txt
+                echo '```'
               } >> "$GITHUB_STEP_SUMMARY"
               cat /tmp/pub-out.txt
               # Public diagnostics channel: step logs and job summaries are
@@ -193,6 +214,11 @@ jobs:
                 echo
                 echo '```'
                 tail -n 80 /tmp/pub-out.txt
+                echo '```'
+                echo
+                echo '### OIDC diagnostics'
+                echo '```'
+                cat /tmp/oidc-diag.txt
                 echo '```'
                 echo
                 echo "npm $(npm --version) / node $(node --version) / auth: trusted publishing (OIDC)"
