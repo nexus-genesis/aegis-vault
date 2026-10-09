@@ -1,4 +1,4 @@
-﻿# Grant 通道流水线（无壳路线 · 2026-09 调研口径）
+# Grant 通道流水线（无壳路线 · 2026-09 调研口径）
 
 > 原则：申请内容 100% 与仓库事实对齐；每个通道标注「核实点」——提交前
 > 必须在官方页面二次确认（条款变化快，宁可多查一次）。
@@ -48,7 +48,7 @@ payments on Base.
 
 - *One-liner*: The non-custodial authorization guardrail for x402 agent
   payments on Base — tiered spend policy, signed authorization snapshots,
-  AP2 mandate co-signing, ERC-8004 KYA anchoring. MIT, 8 npm packages.
+  AP2 mandate co-signing, ERC-8004 KYA anchoring. MIT, 11 npm packages.
 - *What are you building?*
   Agents paying via x402 need spend policy + verifiable evidence. Our
   middleware evaluates every payment (tiered: auto-approve / revocable
@@ -65,12 +65,19 @@ payments on Base.
     `SelfEscalationRejected`; over-limit spend → `AmountExceedsPerTx`
     (typed Solidity errors, simulated + asserted in CI-reproducible E2E)
   - JS ↔ Solidity canonical digest cross-check passes (no schema drift)
-  - **8 MIT npm packages published** (`aegis-vault`, `aegis-agent-sdk`,
+  - **11 MIT npm packages published** (`aegis-vault`, `aegis-agent-sdk`,
     `aegis-chain-eth`, `aegis-chain-sol`, `aegis-chain-adapters`,
-    `aegis-agent-mcp`, `aegis-vault-cli`, `aegis-vault-mcp`), registry
-    smoke-tested; guardrail packages (`aegis-guardrail-x402`,
-    `aegis-guardrail-ap2`, `aegis-erc8004`) in-repo, publishing
-    with next release tag
+    `aegis-agent-mcp`, `aegis-vault-cli`, `aegis-vault-mcp`,
+    `aegis-guardrail-x402`, `aegis-guardrail-ap2`, `aegis-erc8004`),
+    full matrix via tag-triggered CI with npm provenance (release v0.7.0)
+  - **Own agent identity anchored on ERC-8004 Sepolia** (2026-09-08):
+    [agentId 31](https://sepolia.etherscan.io/address/0xf66e7cbdae1cb710fee7732e4e1f173624e137a7)
+    on the community reference IdentityRegistry — KYA commitment
+    `0x90d8...2015` + audit-chain head via the spec's `setMetadata` hook
+    ([tx 0xc9fa...e7fa](https://sepolia.etherscan.io/tx/0xc9fa606ca293d809643505d01d5eef4b855c36de691de5976bce9ebd3f75e7fa)),
+    agent wallet bound via EIP-712 signature
+    ([tx 0x294b...ed00](https://sepolia.etherscan.io/tx/0x294b38da2e3bea17b4f1c6e11a4eed94231d7fb36ae815d61ad6f8014924ed00));
+    public KYA report: `docs/kya/AGENT-KYA.json`
   - 649 tests across 9 workspaces, green; every claim above is
     reproducible from the repo in <5 min
   - Demo E2E (offline, 30s): `npm run e2e:guardrail`; on-chain:
@@ -84,7 +91,8 @@ payments on Base.
      (PAYMENT-REQUIRED/PAYMENT-SIGNATURE/PAYMENT-RESPONSE) — publishable
      middleware, guarded settlement verified end-to-end on testnet
   2. First external deployment on Base mainnet (design partner or
-     open-source adopter), anchored KYA on ERC-8004 testnet registry
+     open-source adopter), with per-agent KYA anchoring (our own agent
+     identity is already anchored: ERC-8004 Sepolia agentId 31)
   3. Public dashboard: signed-snapshot explorer sample + audit
      hash-chain verification guide
 - *Budget*: 1-3 ETH（ nomination 表单口径），open-source, non-commercial
@@ -128,7 +136,8 @@ payments on Base.
   1. Open-sourced snapshot verification library for third-party
      facilitators (verify any aegis-signed authorization independently)
   2. Superchain deployment guide + Base/Optimism testnet settlement E2E
-  3. External deployment #1 + ERC-8004 anchored KYA, public report
+  3. External deployment #1 + per-agent ERC-8004 anchored KYA (own
+     identity already anchored: Sepolia agentId 31), public report
 - *Budget*: 里程碑制，按 Atlas 表单口径分三期
 
 **提交前核实**：Atlas 当期轮次（Rollup ecosystem 与 Retro Funding 的

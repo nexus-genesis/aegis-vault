@@ -64,6 +64,8 @@ const decision = checkSpendAllowedTiered(
 
 ## Documentation
 
+- [Offline guardrail demo](docs/DEMO-GUIDE.md) — verified x402 → AP2 → ERC-8004 walkthrough
+
 - [STATUS.md](STATUS.md) — current state
 - [Security policy](SECURITY.md) / [Audit](SECURITY_AUDIT.md) / [Gap analysis](SECURITY_GAP_ANALYSIS.md) / [Invariants](SECURITY_INVARIANTS.md)
 - [Phase 2 audit scope spec](docs/audit/PHASE2-AUDIT-SCOPE-SPEC.md)

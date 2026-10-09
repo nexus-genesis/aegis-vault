@@ -40,4 +40,6 @@ const { allowed, evaluation } = await pay({
 ## Status
 
 Stage 1 prototype (see `docs/strategy/PRODUCT-POSITIONING-v0.2.md`).
-Not yet published to npm; the decision core ships with `aegis-vault`.
+Version `0.1.0` is published to npm. This checkout is version `0.2.0`;
+check the npm registry and release tag before describing `0.2.0` as published.
+The decision core ships with `aegis-vault`.
