@@ -127,6 +127,146 @@ test('constructor rejects a guardrail without a signer', () => {
   assert.throws(() => createX402Guardrail({ agentId: 'a', policy: limitPolicy }), /sign\(preimage\)/);
 });
 
+// ─── P0-3: recipient / asset / chain scoping ──────────────────────────────
+
+const scopedPolicy = {
+  ...limitPolicy,
+  allowedRecipients: ['0xabc0000000000000000000000000000000000001'],
+  allowedAssets: ['USDC'],
+  allowedChains: ['base'],
+};
+
+test('P0-3: a payment outside the allowlisted recipient is denied', async () => {
+  const guardrail = createX402Guardrail({ agentId: 'agent-1', policy: scopedPolicy, sign: hmacSigner() });
+  const result = await guardrail.evaluatePayment({
+    ...basePayment,
+    payTo: '0x000000000000000000000000000000000000dEaD',
+  });
+  assert.equal(result.decision, DECISIONS.DENY);
+  assert.match(result.reason, /allowedRecipients/);
+});
+
+test('P0-3: asset and chain must both be allowlisted', async () => {
+  const guardrail = createX402Guardrail({ agentId: 'agent-1', policy: scopedPolicy, sign: hmacSigner() });
+  const badAsset = await guardrail.evaluatePayment({ ...basePayment, asset: 'PEPE' });
+  assert.equal(badAsset.decision, DECISIONS.DENY);
+  assert.match(badAsset.reason, /allowedAssets/);
+  const badChain = await guardrail.evaluatePayment({ ...basePayment, chain: 'ronin' });
+  assert.equal(badChain.decision, DECISIONS.DENY);
+  assert.match(badChain.reason, /allowedChains/);
+  // A missing chain cannot satisfy a configured chain allowlist.
+  const noChain = await guardrail.evaluatePayment({ ...basePayment, chain: undefined });
+  assert.equal(noChain.decision, DECISIONS.DENY);
+});
+
+test('P0-3: matching scoped payment is allowed and flagged as scoped', async () => {
+  const guardrail = createX402Guardrail({ agentId: 'agent-1', policy: scopedPolicy, sign: hmacSigner() });
+  const result = await guardrail.evaluatePayment(basePayment);
+  assert.equal(result.decision, DECISIONS.ALLOW);
+  assert.equal(result.snapshot.policyScoped, true);
+});
+
+test('P0-3: an EMPTY allowlist is deny-all (fail-closed)', async () => {
+  const guardrail = createX402Guardrail({
+    agentId: 'agent-1',
+    policy: { ...limitPolicy, allowedRecipients: [] },
+    sign: hmacSigner(),
+  });
+  const result = await guardrail.evaluatePayment(basePayment);
+  assert.equal(result.decision, DECISIONS.DENY);
+  assert.match(result.reason, /allowedRecipients/);
+});
+
+test('P0-3: legacy policy without allowlists is flagged unscoped but still evaluated', async () => {
+  const guardrail = createX402Guardrail({ agentId: 'agent-1', policy: limitPolicy, sign: hmacSigner() });
+  const result = await guardrail.evaluatePayment(basePayment);
+  assert.equal(result.decision, DECISIONS.ALLOW);
+  assert.equal(result.snapshot.policyScoped, false);
+});
+
+// ─── P0-4: atomic daily cap (concurrent TOCTOU fix) ──────────────────────
+
+const dailyCapPolicy = { ...limitPolicy, maxDaily: '50' };
+
+test('P0-4: concurrent payments cannot collectively exceed maxDaily', async () => {
+  // 45 of 50 already spent; only ONE 5-unit payment fits.
+  const guardrail = createX402Guardrail({
+    agentId: 'agent-1',
+    policy: dailyCapPolicy,
+    spentToday: async () => '45',
+    sign: hmacSigner(),
+  });
+  const results = await Promise.all(
+    Array.from({ length: 10 }, () => guardrail.evaluatePayment(basePayment))
+  );
+  const allowed = results.filter((r) => r.decision === DECISIONS.ALLOW).length;
+  assert.equal(allowed, 1, `only one concurrent payment may fit the remaining cap (got ${allowed})`);
+  assert.equal(results.filter((r) => r.decision === DECISIONS.DENY).length, 9);
+});
+
+test('P0-4: a caller that always reports spentToday=0 is still bounded by maxDaily', async () => {
+  // The classic "compromised caller lies about spend" case: 20 × 5 against a
+  // 50/day cap must allow at most 10.
+  const guardrail = createX402Guardrail({
+    agentId: 'agent-1',
+    policy: dailyCapPolicy,
+    spentToday: () => '0',
+    sign: hmacSigner(),
+  });
+  let allowed = 0;
+  for (let i = 0; i < 20; i++) {
+    if ((await guardrail.evaluatePayment(basePayment)).decision === DECISIONS.ALLOW) allowed++;
+  }
+  assert.equal(allowed, 10, `reservations must bound the daily total (got ${allowed})`);
+});
+
+test('P0-4: a custom spend ledger can veto a payment', async () => {
+  let reserved = 0;
+  const guardrail = createX402Guardrail({
+    agentId: 'agent-1',
+    policy: limitPolicy,
+    sign: hmacSigner(),
+    spendLedger: {
+      async pending() { return '0'; },
+      async reserve() { reserved++; return { reserved: false, reason: 'custom ledger veto' }; },
+      async release() {},
+    },
+  });
+  const result = await guardrail.evaluatePayment(basePayment);
+  assert.equal(result.decision, DECISIONS.DENY);
+  assert.match(result.reason, /custom ledger veto/);
+  assert.equal(reserved, 1, 'the injected ledger must be consulted before evidence is produced');
+});
+
+test('P0-4: failed evidence signing releases the reservation', async () => {
+  let released = null;
+  const guardrail = createX402Guardrail({
+    agentId: 'agent-1',
+    policy: limitPolicy,
+    sign: async () => { throw new Error('signer offline'); },
+    spendLedger: {
+      async pending() { return '0'; },
+      async reserve() { return { reserved: true }; },
+      async release(agentId, amount) { released = { agentId, amount }; },
+    },
+  });
+  await assert.rejects(() => guardrail.evaluatePayment(basePayment), /signer offline/);
+  assert.deepEqual(released, { agentId: 'agent-1', amount: '5' });
+});
+
+// ─── P1-5: limit without ceilings fails closed through the guardrail ─────
+
+test('P1-5: a limit policy without ceilings is denied', async () => {
+  const guardrail = createX402Guardrail({
+    agentId: 'agent-1',
+    policy: { type: 'limit' },
+    sign: hmacSigner(),
+  });
+  const result = await guardrail.evaluatePayment(basePayment);
+  assert.equal(result.decision, DECISIONS.DENY);
+  assert.match(result.reason, /without maxPerTx\/maxDaily/);
+});
+
 test('withGuardrail blocks the payment when the guardrail denies', async () => {
   const guardrail = createX402Guardrail({ agentId: 'agent-1', policy: limitPolicy, sign: hmacSigner() });
   let executed = 0;

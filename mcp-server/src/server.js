@@ -170,7 +170,12 @@ async function apiRequest(path, method = 'GET', body = null) {
 const session = {
   wallet: null,       // recovered PQCWallet — LAZY fallback ONLY (INV-001/P0-3)
   signer: null,       // SignerHandle — DEFAULT key holder (isolated subprocess)
-  password: null,     // envelope password, retained ONLY to respawn the signer
+  // P0-2: the envelope password is NOT retained once an isolated signer owns
+  // the key. A compromised server process must not be able to spawn a new
+  // signer with a looser policy or decrypt the envelope. It is kept ONLY when
+  // the signer could not be spawned AND the operator explicitly opted into the
+  // in-process downgrade (MCP_ALLOW_INPROCESS_WALLET=1).
+  password: null,
   agent: null,        // agent identity string
   publicKeyHex: null,
   address: null,
@@ -183,7 +188,8 @@ const SESSION_SIGNER_IDLE_MS = 60 * 60 * 1000;
 
 /** True when this session holds (or can reconstruct) an agent identity. */
 function hasSessionIdentity() {
-  return !!(session.wallet || (session.envelope && session.password));
+  // The isolated signer holds the key even after the password is wiped (P0-2).
+  return !!(session.wallet || session.signer || (session.envelope && session.password));
 }
 
 // ─── Smart Account (official EVM path, Sprint 2.4 T1 on-chain) ────────
@@ -213,6 +219,21 @@ let lastPolicyFingerprint = null;
 // Sprint 5 T2.1 — process-local daily cumulative store behind the soft-policy
 // maxDaily. Single-process semantics; multi-instance shared state is Sprint 6.
 const dailyCumulativeStore = createDailyCumulativeStore();
+
+/**
+ * Test-only read-only session view (no secret material). Lets the suite assert
+ * P0-2 invariants: after a successful signer spawn the password must be gone,
+ * while an explicit in-process downgrade may keep it.
+ */
+export function __sessionSnapshotForTest() {
+  return {
+    hasSigner: !!session.signer,
+    hasPassword: !!session.password,
+    hasEnvelope: !!session.envelope,
+    walletMaterialized: !!session.wallet,
+    address: session.address,
+  };
+}
 
 /** Reset the local Smart Account so each test/setup is independent. */
 export function __resetSmartAccountForTest() {
@@ -539,11 +560,6 @@ function persistSmartAccountState() {
  */
 function fallbackWallet() {
   if (session.wallet) return session.wallet;
-  if (!session.envelope || !session.password) {
-    const err = new Error('No agent identity in this session. Call generate_agent_keys or register_agent first.');
-    err.code = 'NO_WALLET';
-    throw err;
-  }
   if (process.env.MCP_ALLOW_INPROCESS_WALLET !== '1') {
     const err = new Error(
       'The isolated signer subprocess is unavailable, and materializing the private key inside this ' +
@@ -551,6 +567,15 @@ function fallbackWallet() {
       'explicitly accept the in-process downgrade by setting MCP_ALLOW_INPROCESS_WALLET=1.',
     );
     err.code = 'INPROCESS_WALLET_BLOCKED';
+    throw err;
+  }
+  if (!session.envelope || !session.password) {
+    const err = new Error(
+      'No usable agent identity in this session. The isolated signer exited and the envelope password ' +
+      'is deliberately not retained (P0-2), so the key cannot be re-materialized in-process. ' +
+      'Re-register the agent (register_agent / generate_agent_keys) to continue.',
+    );
+    err.code = 'REAUTH_REQUIRED';
     throw err;
   }
   console.error('[mcp-server] DOWNGRADE: materializing in-process wallet (isolated signer unavailable; MCP_ALLOW_INPROCESS_WALLET=1)');
@@ -561,15 +586,12 @@ function fallbackWallet() {
 /**
  * Return a live signer for this session, spawning one lazily if needed.
  * Returns null when no envelope/password is available or spawning fails —
- * callers then fall back to the in-process wallet (explicit downgrade).
+ * callers then fall back to the in-process wallet (explicit downgrade). Once
+ * the password has been wiped (P0-2) a dead signer cannot be respawned, so the
+ * fallback wallet fails closed (REAUTH_REQUIRED).
  */
 async function ensureSessionSigner() {
-  if (!session.envelope || !session.password) return null;
-  if (process.env.NEXUSGENESIS_SIGNER_DISABLE === '1') {
-    // Test/diagnostic seam: simulate an environment where the signer cannot
-    // be spawned, exercising the explicit in-process fallback path.
-    return null;
-  }
+  // A live signer is usable even when the password was wiped (P0-2).
   if (session.signer) {
     try {
       await session.signer.ping(1500);
@@ -578,6 +600,15 @@ async function ensureSessionSigner() {
       // Idle-exited or dead — fall through to respawn.
       session.signer = null;
     }
+  }
+  // P0-2: respawning needs the password; once it is wiped (the normal case),
+  // a dead signer is FINAL for this session — callers fail closed instead of
+  // silently downgrading to an in-process key.
+  if (!session.envelope || !session.password) return null;
+  if (process.env.NEXUSGENESIS_SIGNER_DISABLE === '1') {
+    // Test/diagnostic seam: simulate an environment where the signer cannot
+    // be spawned, exercising the explicit in-process fallback path.
+    return null;
   }
   try {
     // Policy-less signer: mcp-server writes are METADATA (task claim/submit/
@@ -628,7 +659,10 @@ function signerBackedWallet() {
 async function handleGenerateAgentKeys(args) {
   const password = args.password;
   const metadata = args.metadata || {};
-  const identity = await createAgentIdentity({ password, metadata });
+  // P0-1: an explicit spendPolicy (or metadata.spendPolicy) is bound into the
+  // envelope and becomes authoritative inside the signer worker.
+  const spendPolicy = args.spendPolicy || metadata.spendPolicy;
+  const identity = await createAgentIdentity({ password, metadata, spendPolicy });
   session.password = password;
   // P0-3: do NOT materialize the in-process wallet here — the key must live
   // only in the isolated signer subprocess. The fallback wallet is recovered
@@ -641,6 +675,10 @@ async function handleGenerateAgentKeys(args) {
   // P0-3: prefer holding the key in an isolated signer subprocess.
   session.signer = null;
   await ensureSessionSigner();
+  // P0-2: once the isolated signer owns the key, drop the password so a
+  // compromised server process cannot spawn a looser signer or decrypt the
+  // envelope. (Retained only for the explicit in-process downgrade path.)
+  if (session.signer) session.password = null;
   return {
     content: [{
       type: 'text',
@@ -1463,7 +1501,8 @@ async function handleRegisterAgent(args) {
         isError: true,
       };
     }
-    const identity = await createAgentIdentity({ password, metadata: { name } });
+    const spendPolicy = args.spendPolicy;
+    const identity = await createAgentIdentity({ password, metadata: { name }, spendPolicy });
     session.password = password;
     // P0-3: key stays in the isolated signer; no eager in-process wallet.
     session.wallet = null;
@@ -1472,6 +1511,8 @@ async function handleRegisterAgent(args) {
     session.envelope = identity.envelope;
     session.signer = null;
     await ensureSessionSigner();
+    // P0-2: drop the password once the isolated signer holds the key.
+    if (session.signer) session.password = null;
   }
   session.agent = name;
 
@@ -1645,6 +1686,10 @@ const TOOLS = [
         capabilities: { type: 'array', items: { type: 'string' }, description: 'Agent capabilities' },
         referrer: { type: 'string', description: 'Referrer agent ID (optional)' },
         password: { type: 'string', description: 'Password to encrypt the key envelope (required, min 8 chars, when no identity exists in this session)' },
+        spendPolicy: {
+          type: 'object',
+          description: 'Human-authored spend policy bound into the envelope (P0-1): { type: "limit", maxPerTx, maxDaily, allowedRecipients?, allowedAssets?, allowedChains? } | { type: "unlimited" } | { type: "require-approval" }',
+        },
       },
       required: ['name'],
     },
@@ -1666,6 +1711,10 @@ const TOOLS = [
       properties: {
         password: { type: 'string', description: 'Password to encrypt the private key (min 8 chars).' },
         metadata: { type: 'object', description: 'Optional agent metadata (e.g. { name }).' },
+        spendPolicy: {
+          type: 'object',
+          description: 'Human-authored spend policy bound into the envelope (P0-1): { type: "limit", maxPerTx, maxDaily, allowedRecipients?, allowedAssets?, allowedChains? } | { type: "unlimited" } | { type: "require-approval" }',
+        },
       },
       required: ['password'],
     },

@@ -31,6 +31,97 @@ export const DECISIONS = {
   DENY: 'deny'
 };
 
+/**
+ * P0-4: atomic daily-cap ledger used when the caller does not inject one.
+ *
+ * `spentToday()` alone is check-then-act: N concurrent payments all read the
+ * same total and all pass the ceiling. The ledger adds an ATOMIC reservation
+ * step — in-flight payments count against maxDaily immediately, are visible to
+ * concurrent evaluations, and expire after `ttlMs` (a still-pending payment
+ * counts as spent: fail-safe). The default implementation is per-process;
+ * multi-instance deployments must inject a shared ledger implementing:
+ *   { pending(agentId) → amountLike,
+ *     reserve(agentId, amount, { maxDaily, spentToday }) → { reserved, reason? },
+ *     release(agentId, amount) → void }
+ * @param {object} [options]
+ * @param {number} [options.ttlMs=300000] reservation lifetime
+ */
+export function createInMemorySpendLedger({ ttlMs = 300_000 } = {}) {
+  const entries = new Map(); // agentId -> [{ amount: bigint, expiresAt }]
+
+  const prune = (agentId) => {
+    const list = entries.get(agentId);
+    if (!list) return [];
+    const now = Date.now();
+    const live = list.filter((e) => e.expiresAt > now);
+    if (live.length > 0) entries.set(agentId, live);
+    else entries.delete(agentId);
+    return live;
+  };
+
+  return {
+    async pending(agentId) {
+      return prune(agentId).reduce((sum, e) => sum + e.amount, 0n).toString();
+    },
+    // The body runs synchronously before the returned promise is created, so
+    // check-and-set is atomic within a single event-loop turn.
+    async reserve(agentId, amount, { maxDaily, spentToday = '0' } = {}) {
+      const a = BigInt(String(amount));
+      const max = BigInt(String(maxDaily ?? 0));
+      const base = BigInt(String(spentToday ?? 0));
+      const list = prune(agentId);
+      const held = list.reduce((sum, e) => sum + e.amount, 0n);
+      if (max > 0n && base + held + a > max) {
+        return {
+          reserved: false,
+          reason: `daily cap: ${base + held + a} > maxDaily ${max} (in-flight reservations counted)`,
+        };
+      }
+      list.push({ amount: a, expiresAt: Date.now() + ttlMs });
+      entries.set(agentId, list);
+      return { reserved: true };
+    },
+    async release(agentId, amount) {
+      const list = entries.get(agentId);
+      if (!list) return;
+      const a = BigInt(String(amount));
+      const i = list.findIndex((e) => e.amount === a);
+      if (i >= 0) list.splice(i, 1);
+      if (list.length === 0) entries.delete(agentId);
+    },
+  };
+}
+
+function normalizeAllowedSet(value) {
+  if (!Array.isArray(value)) return null;
+  return new Set(value.map((v) => String(v).trim().toLowerCase()));
+}
+
+/**
+ * P0-3: recipient / asset / chain scoping.
+ *
+ * A configured list — including an EMPTY one — is enforced fail-closed
+ * (empty = deny-all). An absent list leaves that dimension unscoped for
+ * backwards compatibility, and the fact is flagged on the snapshot as
+ * `policyScoped: false` so downstream audit tools can see the legacy shape.
+ */
+function checkScoping(config, { payTo, asset, chain }) {
+  const recipients = normalizeAllowedSet(config.allowedRecipients);
+  const assets = normalizeAllowedSet(config.allowedAssets);
+  const chains = normalizeAllowedSet(config.allowedChains);
+  const scoped = !!(recipients || assets || chains);
+  if (recipients && !recipients.has(payTo.trim().toLowerCase())) {
+    return { denied: true, scoped, reason: `payTo ${payTo} is not in allowedRecipients (fail-closed)` };
+  }
+  if (assets && !assets.has(asset.trim().toLowerCase())) {
+    return { denied: true, scoped, reason: `asset ${asset} is not in allowedAssets (fail-closed)` };
+  }
+  if (chains && !chains.has(String(chain ?? '').trim().toLowerCase())) {
+    return { denied: true, scoped, reason: `chain ${chain ?? '(none)'} is not in allowedChains (fail-closed)` };
+  }
+  return { denied: false, scoped };
+}
+
 function canonicalize(obj) {
   // Deterministic JSON: stable key order → the signed preimage is reproducible
   // across processes and verifiable without our JSON implementation quirks.
@@ -52,13 +143,17 @@ function canonicalize(obj) {
  *   `getPolicy(agentId)` provider for dynamic policy lookups.
  * @param {function} [options.spentToday] async/async-safe `() => string|number`
  *   returning the amount already spent today (defaults to 0).
+ * @param {object} [options.spendLedger] atomic daily-cap reservation ledger
+ *   ({ pending, reserve, release }, see createInMemorySpendLedger). Defaults to
+ *   a per-process in-memory ledger; inject a shared one for multi-instance.
  * @param {function} options.sign `async (preimageString) => signature`
  *   signer-agnostic: session key, PQC op key, remote signer, KMS…
  * @param {number} [options.snapshotTtlMs=300000] snapshot validity (5 min).
  * @returns {{ evaluatePayment: Function, agentId: string }}
  */
 export function createX402Guardrail(options = {}) {
-  const { agentId, policy, spentToday, sign, snapshotTtlMs = 300_000 } = options;
+  const { agentId, policy, spentToday, sign, snapshotTtlMs = 300_000, spendLedger } = options;
+  const ledger = spendLedger || createInMemorySpendLedger({ ttlMs: snapshotTtlMs });
   if (!agentId || typeof agentId !== 'string') {
     throw new TypeError('agentId is required');
   }
@@ -99,12 +194,35 @@ export function createX402Guardrail(options = {}) {
     }
 
     const spendConfig = await resolvePolicy();
-    let spent = 0;
+
+    // P0-3: scope the payment to the recipients / assets / chains the human
+    // allowed. A configured list (even empty) is enforced fail-closed.
+    const scoping = checkScoping(spendConfig, { payTo, asset, chain });
+    if (scoping.denied) {
+      return { decision: DECISIONS.DENY, reason: scoping.reason, policyScoped: scoping.scoped };
+    }
+
+    let spent = '0';
     if (typeof spentToday === 'function') {
       spent = await spentToday(agentId);
     }
 
-    const verdict = checkSpendAllowedTiered(spendConfig, { amount, spentToday: spent });
+    // P0-4: in-flight reservations count as already spent, so concurrent
+    // evaluations cannot collectively exceed maxDaily (check-then-act fix).
+    let pending = '0';
+    try {
+      if (typeof ledger.pending === 'function') pending = await ledger.pending(agentId);
+    } catch (err) {
+      return { decision: DECISIONS.DENY, reason: `spend ledger unavailable: ${err.message} (fail-closed)` };
+    }
+    let totalSpent;
+    try {
+      totalSpent = (BigInt(String(spent ?? 0)) + BigInt(String(pending ?? 0))).toString();
+    } catch {
+      return { decision: DECISIONS.DENY, reason: 'invalid spend totals (fail-closed)' };
+    }
+
+    const verdict = checkSpendAllowedTiered(spendConfig, { amount, spentToday: totalSpent });
 
     if (!verdict.allowed && verdict.requiresApproval) {
       return {
@@ -129,6 +247,28 @@ export function createX402Guardrail(options = {}) {
       };
     }
 
+    // P0-4: atomically reserve the amount against the daily cap BEFORE
+    // producing evidence. A denied reservation means another (concurrent)
+    // evaluation already consumed the headroom — fail closed.
+    let reservation = null;
+    if (spendConfig.type === 'limit') {
+      try {
+        reservation = await ledger.reserve(agentId, amount, {
+          maxDaily: spendConfig.maxDaily,
+          spentToday: spent,
+        });
+      } catch (err) {
+        return { decision: DECISIONS.DENY, reason: `spend reservation failed: ${err.message} (fail-closed)` };
+      }
+      if (!reservation || reservation.reserved === false) {
+        return {
+          decision: DECISIONS.DENY,
+          tier: verdict.tier,
+          reason: reservation?.reason || 'daily-cap reservation denied (fail-closed)',
+        };
+      }
+    }
+
     // Small-auto (or unlimited): build the signed authorization snapshot.
     // The snapshot is SELF-CONTAINED evidence: signature embedded as a field
     // (excluded from the signed preimage), while also returned at top level
@@ -146,12 +286,22 @@ export function createX402Guardrail(options = {}) {
       requestId: requestId ?? null,
       tier: verdict.tier,
       decision: DECISIONS.ALLOW,
+      policyScoped: scoping.scoped,
       nonce: crypto.randomUUID(),
       at,
       expiresAt: at + snapshotTtlMs
     };
     const preimage = canonicalize({ ...snapshot, signature: undefined });
-    const signature = await sign(preimage);
+    let signature;
+    try {
+      signature = await sign(preimage);
+    } catch (err) {
+      // Evidence production failed — give the daily headroom back.
+      if (reservation?.reserved) {
+        try { await ledger.release(agentId, amount); } catch { /* expiration will reclaim it */ }
+      }
+      throw err;
+    }
     snapshot.signature = signature;
 
     return {
@@ -193,5 +343,6 @@ export default {
   GUARDRAIL_VERSION,
   DECISIONS,
   createX402Guardrail,
+  createInMemorySpendLedger,
   withGuardrail
 };

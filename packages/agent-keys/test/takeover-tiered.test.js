@@ -16,7 +16,9 @@ import {
   MEDIUM_TIER_TIMELOCK_MS,
   POLICY_TIMELOCK_MS,
   resolveTier,
+  checkSpendAllowed,
   checkSpendAllowedTiered,
+  combineSpendPolicies,
   PolicyTimelock,
   SPEND_MODES
 } from '../src/index.js';
@@ -250,6 +252,74 @@ test('PolicyTimelock.clearAll_removes_all_pending', () => {
   const cleared = timelock.clearAll();
   assert.equal(cleared, 2);
   assert.equal(timelock.pendingCount, 0);
+});
+
+// ─── P1-5: a 'limit' policy without any ceiling fails CLOSED ─────────────
+
+test('P1-5: limit policy without maxPerTx/maxDaily is denied (fail-closed)', () => {
+  const verdict = checkSpendAllowed({ type: SPEND_MODES.LIMITED }, { amount: '9' });
+  assert.equal(verdict.allowed, false);
+  assert.match(verdict.reason, /without maxPerTx\/maxDaily/);
+
+  // Explicit zero ceilings are equally meaningless — deny.
+  const zeroed = checkSpendAllowed({ type: SPEND_MODES.LIMITED, maxPerTx: 0, maxDaily: 0 }, { amount: '1' });
+  assert.equal(zeroed.allowed, false);
+});
+
+test('P1-5: a single ceiling is still sufficient', () => {
+  assert.equal(checkSpendAllowed({ type: SPEND_MODES.LIMITED, maxPerTx: '10' }, { amount: '5' }).allowed, true);
+  assert.equal(checkSpendAllowed({ type: SPEND_MODES.LIMITED, maxDaily: '10' }, { amount: '5' }).allowed, true);
+});
+
+// ─── P0-1: envelope-bound policy merge (stricter-of) ────────────────────
+
+test('P0-1: no bound policy preserves the legacy parent-supplied policy', () => {
+  const requested = { type: 'unlimited' };
+  assert.deepEqual(combineSpendPolicies(undefined, requested), requested);
+  assert.deepEqual(combineSpendPolicies(null, requested), requested);
+});
+
+test('P0-1: bound policy wins over a looser parent policy', () => {
+  const bound = { type: 'limit', maxPerTx: '10', maxDaily: '50' };
+  const merged = combineSpendPolicies(bound, { type: 'unlimited' });
+  assert.equal(merged.type, SPEND_MODES.LIMITED);
+  assert.equal(merged.maxPerTx, '10');
+  assert.equal(merged.maxDaily, '50');
+  assert.equal(merged.policySource, 'envelope-bound');
+});
+
+test('P0-1: parent tier-threshold inflation cannot widen the auto-approve tier', () => {
+  const bound = { type: 'limit', maxPerTx: '10', maxDaily: '50' };
+  const merged = combineSpendPolicies(bound, {
+    type: 'unlimited',
+    tierThresholds: { smallThreshold: '2000000', largeThreshold: '4000000' }
+  });
+  // Bound omits thresholds → defaults (10/100) remain the effective ceiling.
+  assert.equal(merged.tierThresholds.smallThreshold, DEFAULT_TIER_THRESHOLDS.SMALL);
+  assert.equal(merged.tierThresholds.largeThreshold, DEFAULT_TIER_THRESHOLDS.LARGE);
+  const verdict = checkSpendAllowedTiered(merged, { amount: '1000000' });
+  assert.equal(verdict.allowed, false);
+});
+
+test('P0-1: a parent may only tighten ceilings (smaller nonzero wins)', () => {
+  const merged = combineSpendPolicies(
+    { type: 'limit', maxPerTx: '100', maxDaily: '500' },
+    { type: 'limit', maxPerTx: '5', maxDaily: '20' }
+  );
+  assert.equal(merged.maxPerTx, '5');
+  assert.equal(merged.maxDaily, '20');
+  assert.equal(checkSpendAllowed(merged, { amount: '50' }).allowed, false);
+});
+
+test('P0-1: a stricter parent mode wins (escalation is allowed)', () => {
+  const merged = combineSpendPolicies({ type: 'limit', maxPerTx: '100' }, { type: 'require-approval' });
+  assert.equal(merged.type, SPEND_MODES.REQUIRE_APPROVAL);
+});
+
+test('P0-1: bound limit without ceilings stays fail-closed after merging', () => {
+  const merged = combineSpendPolicies({ type: 'limit' }, null);
+  assert.equal(merged.type, SPEND_MODES.LIMITED);
+  assert.equal(checkSpendAllowed(merged, { amount: '1' }).allowed, false);
 });
 
 test('PolicyTimelock.constructor_rejects_invalid_timeout', () => {

@@ -35,11 +35,18 @@ import {
  * Generate a brand-new autonomous agent identity.
  * Returns public material (safe to register) + an encrypted private-key
  * envelope the caller keeps locally. The private key must never be sent out.
- * @param {object} options { password, metadata }
+ *
+ * P0-1: pass `spendPolicy` to bind a HUMAN-authored spend policy into the
+ * envelope metadata (AES-GCM/AAD-protected). The signature worker then treats
+ * it as authoritative: a spawning parent may only tighten it, and the
+ * amount-hash-unlinkable legacy sign() channel is disabled for that envelope.
+ * Without it the envelope carries no binding (legacy behaviour).
+ *
+ * @param {object} options { password, metadata, spendPolicy }
  * @returns {Promise<{ agentId, address, publicKeyHex, envelope, keyModel }>}
  */
 export async function createAgentIdentity(options = {}) {
-  const { password, metadata = {} } = options;
+  const { password, metadata = {}, spendPolicy } = options;
   if (!password || typeof password !== 'string' || password.length < 8) {
     // SECURITY FIX: a hard-coded default password made every self-sovereign
     // identity recoverable by anyone who knows the default. A real password is
@@ -48,11 +55,18 @@ export async function createAgentIdentity(options = {}) {
   }
   const { publicKey, privateKey } = await generateKeyPair();
   const address = generateAddress(publicKey);
-  const envelope = encryptPrivateKey(privateKey, password, {
+  // P0-1: the spend policy is bound INSIDE the authenticated envelope
+  // metadata, so the worker can enforce it without trusting the parent.
+  const boundPolicy = spendPolicy ?? metadata.spendPolicy;
+  const envelopeMetadata = {
     address,
     publicKey: publicKey.toString('hex'),
-    keyModel: KEY_MODELS.SELF_SOVEREIGN
-  });
+    keyModel: KEY_MODELS.SELF_SOVEREIGN,
+  };
+  if (boundPolicy && typeof boundPolicy === 'object' && !Array.isArray(boundPolicy)) {
+    envelopeMetadata.spendPolicy = boundPolicy;
+  }
+  const envelope = encryptPrivateKey(privateKey, password, envelopeMetadata);
   return {
     address,
     publicKeyHex: publicKey.toString('hex'),

@@ -14,7 +14,8 @@ import assert from 'node:assert/strict';
 import {
   PQCWallet,
   spawnSigner,
-  isValidEnvelope
+  isValidEnvelope,
+  encryptPrivateKey
 } from '../src/index.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -407,6 +408,87 @@ test('signIntent fails closed on malformed payloads (P0-4)', async () => {
     for (const amt of ['abc', '-5', 0.5]) {
       await assert.rejects(() => signer.signIntent({ type: 'agent_asset_intent', amount: amt }), /invalid amount/i);
     }
+  } finally {
+    await signer.close();
+  }
+});
+
+// ─── P0-1: envelope-bound policy is AUTHORITATIVE in the worker ───────────
+
+/** Build an envelope whose AAD-protected metadata binds a spend policy. */
+async function createBoundEnvelope(wallet, password, spendPolicy) {
+  const privateKey = wallet.privateKey;
+  try {
+    return encryptPrivateKey(privateKey, password, {
+      address: wallet.address,
+      publicKey: wallet.publicKey.toString('hex'),
+      spendPolicy,
+    });
+  } finally {
+    privateKey.fill(0);
+  }
+}
+
+test('P0-1: a compromised parent cannot loosen an envelope-bound policy (C2)', async () => {
+  const wallet = await PQCWallet.generate();
+  const password = 'bound-policy-123';
+  const envelope = await createBoundEnvelope(wallet, password, {
+    type: 'limit', maxPerTx: '10', maxDaily: '50'
+  });
+
+  // The exact parent-supplied payload from the red-team finding: unlimited
+  // mode + inflated tiers.
+  const signer = await spawnSigner({
+    envelope, password,
+    policy: { type: 'unlimited', tierThresholds: { smallThreshold: '2000000', largeThreshold: '4000000' } }
+  });
+  try {
+    await assert.rejects(
+      () => signer.signIntent({ type: 'agent_asset_intent', amount: '1000000', recipient: '0xattacker' }),
+      /exceeds maxPerTx/i
+    );
+    // The bound ceiling still permits an in-policy intent.
+    const sig = await signer.signIntent({ type: 'agent_asset_intent', amount: '3', recipient: '0xok' });
+    assert.ok(typeof sig === 'string' && sig.startsWith('0x'));
+  } finally {
+    await signer.close();
+  }
+});
+
+test('P0-1: a parent may only TIGHTEN an envelope-bound policy', async () => {
+  const wallet = await PQCWallet.generate();
+  const password = 'bound-policy-456';
+  const envelope = await createBoundEnvelope(wallet, password, {
+    type: 'limit', maxPerTx: '100', maxDaily: '500'
+  });
+  const signer = await spawnSigner({
+    envelope, password,
+    policy: { type: 'limit', maxPerTx: '5', maxDaily: '20' }
+  });
+  try {
+    await assert.rejects(
+      () => signer.signIntent({ type: 'agent_asset_intent', amount: '50' }),
+      /exceeds maxPerTx 5/
+    );
+  } finally {
+    await signer.close();
+  }
+});
+
+test('P0-1: legacy sign() is refused under an envelope-bound policy (C3)', async () => {
+  const wallet = await PQCWallet.generate();
+  const password = 'bound-policy-789';
+  const envelope = await createBoundEnvelope(wallet, password, {
+    type: 'limit', maxPerTx: '10', maxDaily: '50'
+  });
+  const signer = await spawnSigner({ envelope, password });
+  try {
+    // The amount-hash link is unverifiable on this channel, so even a
+    // truthful small amount must not produce a signature.
+    await assert.rejects(
+      () => signer.sign('0x' + 'ab'.repeat(32), { amount: '1' }),
+      /Legacy sign\(\) is disabled/i
+    );
   } finally {
     await signer.close();
   }

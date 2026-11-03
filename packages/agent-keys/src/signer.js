@@ -60,6 +60,13 @@
  * The session-key layer (verifier) MUST still independently validate the
  * transaction's real amount against maxPerTx/maxDaily before acceptance.
  *
+ * P0-1 FIX (envelope-bound policy): when the envelope metadata carries a
+ * `spendPolicy` (written by the human at creation time), the worker treats it
+ * as authoritative — a spawning parent may only TIGHTEN it
+ * (combineSpendPolicies) — and the legacy 'sign' channel above is REFUSED
+ * outright for such envelopes, because its amount cannot be linked to the
+ * hash. Callers must use sign_intent() instead.
+ *
  * USAGE
  * ─────
  *   import { spawnSigner } from 'aegis-vault';

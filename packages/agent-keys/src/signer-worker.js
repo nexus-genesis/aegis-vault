@@ -32,7 +32,7 @@ import { ShardedSecret, disableCoreDumps } from './secure.js';
 import { decryptPrivateKey, isValidEnvelope } from './encryption.js';
 import { generateAddress } from './address.js';
 import { signSync } from './pqc.js';
-import { checkSpendAllowedTiered } from './takeover.js';
+import { checkSpendAllowedTiered, combineSpendPolicies } from './takeover.js';
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────
 // Immediately disable core dumps in the child process.
@@ -64,6 +64,7 @@ let sharded = null;     // ShardedSecret holding the private key
 let publicKey = null;   // Public key (Buffer)
 let address = null;     // Wallet address (string)
 let policy = null;      // Spend policy (object)
+let hasBoundPolicy = false; // envelope.metadata.spendPolicy present (P0-1)
 let idleTimer = null;   // Idle timeout timer
 let currentIdleTimeout = 5 * 60 * 1000; // Idle timeout in ms
 
@@ -113,10 +114,20 @@ function handleMessage(msg) {
           sharded = new ShardedSecret(privateKey);
           publicKey = Buffer.from(msg.envelope.metadata.publicKey, 'hex');
           address = msg.envelope.metadata.address || generateAddress(publicKey);
-          policy = msg.policy || {};
+
+          // P0-1 (policy authority): a human-authored spend policy bound into
+          // the (AES-GCM/AAD-protected) envelope metadata is authoritative.
+          // The spawning parent may only TIGHTEN it — combineSpendPolicies
+          // resolves every field to the stricter of the two. Without a bound
+          // policy the legacy behaviour (parent-supplied policy) is preserved.
+          const boundPolicy = msg.envelope.metadata.spendPolicy;
+          hasBoundPolicy = !!(boundPolicy && typeof boundPolicy === 'object' && !Array.isArray(boundPolicy));
+          policy = hasBoundPolicy
+            ? combineSpendPolicies(boundPolicy, msg.policy)
+            : (msg.policy || {});
           currentIdleTimeout = msg.idleTimeoutMs || (5 * 60 * 1000);
 
-          respond({ type: 'init_ok', address });
+          respond({ type: 'init_ok', address, policySource: hasBoundPolicy ? 'envelope-bound' : 'parent' });
           resetIdleTimer();
         } catch (e) {
           respond({ type: 'init_fail', error: e.message });
@@ -130,6 +141,20 @@ function handleMessage(msg) {
           return;
         }
         resetIdleTimer();
+
+        // P0-1: under an envelope-bound policy the parent-supplied `amount`
+        // cannot be linked to `hash` (see KNOWN LIMITATION), so a compromised
+        // parent could send amount=1 alongside the hash of a 1,000,000 transfer.
+        // The legacy channel is therefore refused outright; callers must use
+        // sign_intent(), where the amount IS part of the signed payload.
+        if (hasBoundPolicy) {
+          respond({
+            type: 'sign_fail',
+            requestId: msg.requestId,
+            error: 'Legacy sign() is disabled under an envelope-bound policy — amount/hash are unlinkable; use sign_intent() with the amount inside the payload (P0-1)'
+          });
+          return;
+        }
 
         const hash = msg.hash;
         if (!hash || typeof hash !== 'string' || !/^0x[0-9a-fA-F]+$/.test(hash)) {

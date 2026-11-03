@@ -46,7 +46,10 @@ disableCoreDumps();
 // scopes those via session keys), but three-tier gradient authorization is
 // ALWAYS enforced — small auto-signs, medium is timelocked, large requires
 // human approval. Tier thresholds come from takeover.js defaults (10/100).
-const SIGN_POLICY = { type: 'limit', maxPerTx: '0', maxDaily: '0' };
+// P1-5: `{type:'limit'}` with no ceiling is now fail-closed, so "no ceiling
+// but tiers still apply" is expressed as `unlimited` (checkSpendAllowedTiered
+// grades unlimited mode by tier).
+const SIGN_POLICY = { type: 'unlimited' };
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 

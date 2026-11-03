@@ -465,6 +465,105 @@ export class PolicyTimelock {
   }
 }
 
+// ─── P0-1: Envelope-bound policy (worker-side policy authority) ───────────
+
+/** Stricter mode ordering: an envelope-bound policy can only be tightened. */
+const MODE_STRICTNESS = {
+  [SPEND_MODES.UNLIMITED]: 0,
+  [SPEND_MODES.LIMITED]: 1,
+  [SPEND_MODES.REQUIRE_APPROVAL]: 2,
+};
+
+function modeStrictness(policy) {
+  const mode = resolveSpendMode(policy);
+  return MODE_STRICTNESS[mode.type] ?? MODE_STRICTNESS[SPEND_MODES.REQUIRE_APPROVAL];
+}
+
+/** Parse a ceiling into a positive BigInt, or null when absent/invalid. */
+function ceilingOf(value) {
+  if (value == null) return null;
+  try {
+    const s = String(value).trim();
+    if (s === '') return null;
+    const n = BigInt(s);
+    return n > 0n ? n : null; // 0 / absent = "no ceiling"
+  } catch {
+    return null;
+  }
+}
+
+/** Stricter of two ceilings (absent = no ceiling); undefined when neither. */
+function strictestCeiling(a, b) {
+  const candidates = [ceilingOf(a), ceilingOf(b)].filter((v) => v !== null);
+  if (candidates.length === 0) return undefined;
+  let min = candidates[0];
+  for (const v of candidates) if (v < min) min = v;
+  return min.toString();
+}
+
+/**
+ * Stricter of two tier-threshold pairs.
+ * The envelope-bound value (or the effective default when it omits the field)
+ * is the human-authored ceiling; a parent-supplied value may only LOWER a
+ * threshold (moving spends into stricter tiers), never raise it (P0-1).
+ */
+function strictestThresholds(boundT, requestedT) {
+  const seed = (key, fallback) => {
+    const b = ceilingOf(boundT?.[key]);
+    return b === null ? BigInt(fallback) : b;
+  };
+  const pick = (key, fallback) => {
+    const s = seed(key, fallback);
+    const r = ceilingOf(requestedT?.[key]);
+    return (r !== null && r < s ? r : s).toString();
+  };
+  return {
+    smallThreshold: pick('smallThreshold', DEFAULT_TIER_THRESHOLDS.SMALL),
+    largeThreshold: pick('largeThreshold', DEFAULT_TIER_THRESHOLDS.LARGE),
+  };
+}
+
+/**
+ * P0-1: compute the policy a signature worker must enforce when the key
+ * envelope carries a human-authored `metadata.spendPolicy`.
+ *
+ * The WORKER — not the parent process — owns this merge. A compromised parent
+ * can still supply a looser policy, but every field resolves to the STRICTER
+ * of (envelope-bound, requested):
+ *   - mode: require-approval > limit > unlimited
+ *   - maxPerTx/maxDaily: the smaller nonzero ceiling wins (absent = no ceiling)
+ *   - tierThresholds: the parent may only lower thresholds, never raise them
+ *
+ * @param {object} boundPolicy - envelope.metadata.spendPolicy (human-authored)
+ * @param {object} requestedPolicy - policy supplied by the spawning parent
+ * @returns {object|undefined} effective policy; `requestedPolicy` verbatim
+ *   when no bound policy exists (legacy, pre-P0-1 behaviour)
+ */
+export function combineSpendPolicies(boundPolicy, requestedPolicy) {
+  if (!boundPolicy || typeof boundPolicy !== 'object' || Array.isArray(boundPolicy)) {
+    return requestedPolicy;
+  }
+  const boundMode = resolveSpendMode(boundPolicy);
+  const requested = (requestedPolicy && typeof requestedPolicy === 'object' && !Array.isArray(requestedPolicy))
+    ? requestedPolicy
+    : null;
+
+  // Stricter mode of the two (the parent can escalate oversight, never relax it).
+  const effectiveType = requested && modeStrictness(requested) >= modeStrictness(boundMode)
+    ? resolveSpendMode(requested).type
+    : boundMode.type;
+
+  const merged = { type: effectiveType, policySource: 'envelope-bound' };
+  if (effectiveType === SPEND_MODES.LIMITED) {
+    const maxPerTx = strictestCeiling(boundPolicy.maxPerTx, requested?.maxPerTx);
+    const maxDaily = strictestCeiling(boundPolicy.maxDaily, requested?.maxDaily);
+    if (maxPerTx !== undefined) merged.maxPerTx = maxPerTx;
+    if (maxDaily !== undefined) merged.maxDaily = maxDaily;
+  }
+  merged.tierThresholds = strictestThresholds(boundPolicy.tierThresholds, requested?.tierThresholds);
+  return merged;
+}
+
 /**
  * Check whether a proposed spend is allowed under a spend config.
  * @param {object} config - spend config
@@ -508,6 +607,16 @@ export function checkSpendAllowed(config, ctx = {}) {
     case SPEND_MODES.LIMITED: {
       const maxPerTx = BigInt(mode.maxPerTx ?? 0);
       const maxDaily = BigInt(mode.maxDaily ?? 0);
+      // P1-5 (fail-closed): a LIMITED policy that declares NO ceiling at all is
+      // not a limit — earlier revisions read both missing fields as 0 = "no
+      // ceiling", so a truncated/migrated policy silently granted unlimited
+      // spend authority. At least one nonzero ceiling is now mandatory.
+      if (maxPerTx <= 0n && maxDaily <= 0n) {
+        return {
+          allowed: false,
+          reason: 'limit policy without maxPerTx/maxDaily (fail-closed)',
+        };
+      }
       if (maxPerTx > 0n && a > maxPerTx) {
         return { allowed: false, reason: `exceeds maxPerTx ${maxPerTx}` };
       }
@@ -586,6 +695,7 @@ export default {
   POLICY_TIMELOCK_MS,
   resolveSpendMode,
   resolveTier,
+  combineSpendPolicies,
   checkSpendAllowed,
   checkSpendAllowedTiered,
   PolicyTimelock,

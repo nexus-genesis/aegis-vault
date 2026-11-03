@@ -359,3 +359,32 @@ test('in-process wallet downgrade is BLOCKED by default (fail-closed, external r
     await new Promise((r) => mock.close(r));
   }
 });
+
+test('P0-2: the envelope password is NOT retained once the isolated signer owns the key', async () => {
+  // A compromised server process must not be able to spawn a fresh signer with
+  // a looser policy, so the password has to be dropped after a successful spawn.
+  const fresh = await import(`../src/server.js?p02-wipe`);
+  const s = fresh.createServer();
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  await s.connect(st);
+  const c = new Client({ name: 'p02-wipe-client', version: '1.0.0' }, { capabilities: {} });
+  await c.connect(ct);
+
+  try {
+    const gen = await c.callTool({
+      name: 'generate_agent_keys',
+      arguments: { password: 'agent-secret-123', metadata: { name: 'p02-wipe-agent' } },
+    });
+    const out = JSON.parse(gen.content[0].text);
+    assert.equal(out.signing, 'isolated-signer (P0-3)', 'the isolated signer must be the default path');
+
+    const snap = fresh.__sessionSnapshotForTest();
+    assert.equal(snap.hasSigner, true, 'a live signer must be present');
+    assert.equal(snap.hasPassword, false, 'the envelope password must be wiped (P0-2)');
+    assert.equal(snap.walletMaterialized, false, 'no in-process key may be materialized');
+    await c.close();
+    await s.close();
+  } finally {
+    // Nothing to restore — the test never sets signer/password env flags.
+  }
+});
