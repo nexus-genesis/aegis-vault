@@ -13,7 +13,7 @@
     "start": "npm run start --workspace mcp-server",
     "dev": "node --watch mcp-server/src/server.js",
     "test": "npm run test --workspaces --if-present",
-    "test:release-packages": "npm run test --workspace packages/agent-keys --workspace packages/agent-sdk --workspace packages/chain-eth --workspace packages/chain-sol --workspace packages/chain-adapters --workspace mcp-server --if-present",
+    "test:release-packages": "npm run test --workspace packages/agent-keys --workspace packages/agent-sdk --workspace packages/chain-eth --workspace packages/chain-sol --workspace packages/chain-adapters --workspace packages/guardrail-x402 --workspace mcp-server --if-present",
     "smoke:release": "node scripts/release-smoke.mjs",
     "sync:deny-list": "node scripts/sync-deny-list.mjs",
     "check:deny-list": "node scripts/sync-deny-list.mjs --check",

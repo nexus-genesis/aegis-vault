@@ -92,6 +92,46 @@ export function createInMemorySpendLedger({ ttlMs = 300_000 } = {}) {
   };
 }
 
+/**
+ * D6: single-use nonce registry backing verifySnapshot() replay protection.
+ *
+ * A signed authorization snapshot is self-contained evidence, so anyone who
+ * observes one can replay it until the VERIFIER records it. This registry is
+ * that record: `consume(nonce, expiresAt)` is atomic (check-and-set inside one
+ * event-loop turn) and returns false on replay. Entries expire with the
+ * snapshot's own `expiresAt`.
+ *
+ * The default implementation is per-process; a multi-instance verifier must
+ * inject a shared (e.g. Redis-backed) store exposing the same
+ * `{ consume, has }` shape.
+ *
+ * @param {object} [options]
+ * @param {number} [options.ttlMs=300000] fallback lifetime when `expiresAt`
+ *   is absent or already past.
+ */
+export function createInMemoryNonceRegistry({ ttlMs = 300_000 } = {}) {
+  const seen = new Map(); // nonce -> expiresAt (ms)
+
+  const prune = (now) => {
+    for (const [nonce, exp] of seen) if (exp <= now) seen.delete(nonce);
+  };
+
+  return {
+    async consume(nonce, expiresAt) {
+      const now = Date.now();
+      prune(now);
+      if (seen.has(String(nonce))) return false;
+      const exp = typeof expiresAt === 'number' && expiresAt > now ? expiresAt : now + ttlMs;
+      seen.set(String(nonce), exp);
+      return true;
+    },
+    async has(nonce) {
+      prune(Date.now());
+      return seen.has(String(nonce));
+    },
+  };
+}
+
 function normalizeAllowedSet(value) {
   if (!Array.isArray(value)) return null;
   return new Set(value.map((v) => String(v).trim().toLowerCase()));
@@ -339,10 +379,86 @@ export function withGuardrail(guardrail, doPayment) {
   };
 }
 
+/**
+ * D6: verify a signed x402 authorization snapshot (verifier side).
+ *
+ * evaluatePayment() proves "this agent was allowed to pay"; this is the
+ * counterpart a resource server / audit chain runs before HONOURING the
+ * snapshot. Fail-closed checks, in order:
+ *   1. shape, decision === allow, signature present
+ *   2. not expired (`expiresAt > now`)
+ *   3. signature covers the canonical preimage (incl. amount/payTo/expiresAt)
+ *   4. the nonce has never been consumed → replay denied
+ *
+ * Signature verification is verifier-supplied (`verify(preimage, signature)`),
+ * mirroring the signer-agnostic design (HMAC, PQC op key, secp256k1, KMS…).
+ * Nonce consumption happens AFTER the signature check so an attacker cannot
+ * burn a legitimate nonce with a forged snapshot (DoS).
+ *
+ * @param {object} snapshot snapshot returned by evaluatePayment()
+ * @param {object} options
+ * @param {function} options.verify `async (preimageString, signature) => boolean`
+ * @param {object} [options.nonceRegistry] `{ consume, has }` store — REQUIRED
+ *   unless `consumeNonce: false`; an absent registry fails closed
+ * @param {boolean} [options.consumeNonce=true] consume the nonce (replay-proof)
+ *   or only validate (audit re-validation of the same evidence)
+ * @param {number} [options.now=Date.now()] injectable clock
+ * @returns {Promise<{valid: boolean, reason?: string, snapshot?: object, preimage?: string}>}
+ */
+export async function verifySnapshot(snapshot, options = {}) {
+  const { verify, nonceRegistry, consumeNonce = true, now = Date.now() } = options;
+  if (typeof verify !== 'function') {
+    throw new TypeError('verify(preimage, signature) callback is required');
+  }
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    return { valid: false, reason: 'malformed snapshot' };
+  }
+  if (snapshot.decision !== DECISIONS.ALLOW) {
+    return { valid: false, reason: `snapshot decision is ${snapshot.decision ?? '(none)'}, not allow` };
+  }
+  if (typeof snapshot.signature !== 'string' || snapshot.signature.length === 0) {
+    return { valid: false, reason: 'snapshot signature missing' };
+  }
+  if (typeof snapshot.expiresAt !== 'number' || snapshot.expiresAt <= now) {
+    return { valid: false, reason: 'snapshot expired (fail-closed)' };
+  }
+
+  const preimage = canonicalize({ ...snapshot, signature: undefined });
+  let ok;
+  try {
+    ok = await verify(preimage, snapshot.signature);
+  } catch (err) {
+    return { valid: false, reason: `signature verification error: ${err.message} (fail-closed)` };
+  }
+  if (!ok) return { valid: false, reason: 'invalid snapshot signature' };
+
+  if (consumeNonce) {
+    if (typeof snapshot.nonce !== 'string' || snapshot.nonce.length === 0) {
+      return { valid: false, reason: 'snapshot nonce missing (replay protection)' };
+    }
+    if (!nonceRegistry || typeof nonceRegistry.consume !== 'function') {
+      return { valid: false, reason: 'nonce registry required for replay protection (fail-closed)' };
+    }
+    let fresh;
+    try {
+      fresh = await nonceRegistry.consume(snapshot.nonce, snapshot.expiresAt);
+    } catch (err) {
+      return { valid: false, reason: `nonce registry error: ${err.message} (fail-closed)` };
+    }
+    if (!fresh) {
+      return { valid: false, reason: `snapshot nonce ${snapshot.nonce} already consumed (replay denied)` };
+    }
+  }
+
+  return { valid: true, snapshot, preimage };
+}
+
 export default {
   GUARDRAIL_VERSION,
   DECISIONS,
   createX402Guardrail,
   createInMemorySpendLedger,
+  createInMemoryNonceRegistry,
+  verifySnapshot,
   withGuardrail
 };

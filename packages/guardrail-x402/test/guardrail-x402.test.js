@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { createX402Guardrail, withGuardrail, DECISIONS } from '../src/index.js';
+import { createX402Guardrail, withGuardrail, verifySnapshot, createInMemoryNonceRegistry, DECISIONS } from '../src/index.js';
 
 function hmacSigner(secret = 'guardrail-test-secret') {
   return async (preimage) =>
@@ -279,4 +279,93 @@ test('withGuardrail blocks the payment when the guardrail denies', async () => {
   assert.equal(executed, 1);
   assert.equal(allowed.response.status, 200);
   assert.equal(allowed.evaluation.snapshot.payTo, basePayment.payTo);
+});
+
+// ─── D6: verifier-side snapshot validation + replay protection ──────────
+
+function hmacVerifier(secret = 'guardrail-test-secret') {
+  return async (preimage, signature) =>
+    crypto.createHmac('sha256', secret).update(preimage).digest('hex') === signature;
+}
+
+async function makeSnapshot() {
+  const guardrail = createX402Guardrail({ agentId: 'agent-1', policy: limitPolicy, sign: hmacSigner() });
+  return guardrail.evaluatePayment(basePayment);
+}
+
+test('D6: a freshly issued snapshot verifies and consumes its nonce', async () => {
+  const { snapshot } = await makeSnapshot();
+  const nonceRegistry = createInMemoryNonceRegistry();
+  const result = await verifySnapshot(snapshot, { verify: hmacVerifier(), nonceRegistry });
+  assert.equal(result.valid, true);
+  assert.equal(await nonceRegistry.has(snapshot.nonce), true);
+});
+
+test('D6: replaying the same snapshot is denied', async () => {
+  const { snapshot } = await makeSnapshot();
+  const nonceRegistry = createInMemoryNonceRegistry();
+  const first = await verifySnapshot(snapshot, { verify: hmacVerifier(), nonceRegistry });
+  assert.equal(first.valid, true);
+  const replay = await verifySnapshot(snapshot, { verify: hmacVerifier(), nonceRegistry });
+  assert.equal(replay.valid, false);
+  assert.match(replay.reason, /already consumed/);
+});
+
+test('D6: a tampered amount invalidates the signature', async () => {
+  const { snapshot } = await makeSnapshot();
+  const nonceRegistry = createInMemoryNonceRegistry();
+  const tampered = { ...snapshot, amount: '999' };
+  const result = await verifySnapshot(tampered, { verify: hmacVerifier(), nonceRegistry });
+  assert.equal(result.valid, false);
+  assert.match(result.reason, /invalid snapshot signature/);
+});
+
+test('D6: an expired snapshot is rejected', async () => {
+  const { snapshot } = await makeSnapshot();
+  const nonceRegistry = createInMemoryNonceRegistry();
+  const result = await verifySnapshot(snapshot, {
+    verify: hmacVerifier(),
+    nonceRegistry,
+    now: snapshot.expiresAt + 1,
+  });
+  assert.equal(result.valid, false);
+  assert.match(result.reason, /expired/);
+});
+
+test('D6: a non-allow decision never verifies as authorization', async () => {
+  const { snapshot } = await makeSnapshot();
+  const result = await verifySnapshot({ ...snapshot, decision: DECISIONS.HOLD }, {
+    verify: hmacVerifier(),
+    nonceRegistry: createInMemoryNonceRegistry(),
+  });
+  assert.equal(result.valid, false);
+  assert.match(result.reason, /not allow/);
+});
+
+test('D6: missing nonce registry fails closed', async () => {
+  const { snapshot } = await makeSnapshot();
+  const result = await verifySnapshot(snapshot, { verify: hmacVerifier() });
+  assert.equal(result.valid, false);
+  assert.match(result.reason, /nonce registry required/);
+});
+
+test('D6: a forged snapshot cannot burn a legitimate nonce (DoS guard)', async () => {
+  const { snapshot } = await makeSnapshot();
+  const nonceRegistry = createInMemoryNonceRegistry();
+  const forged = { ...snapshot, amount: '999' }; // same nonce, invalid signature
+  const rejected = await verifySnapshot(forged, { verify: hmacVerifier(), nonceRegistry });
+  assert.equal(rejected.valid, false);
+  assert.equal(await nonceRegistry.has(snapshot.nonce), false, 'nonce must not be consumed by a forged snapshot');
+  const legit = await verifySnapshot(snapshot, { verify: hmacVerifier(), nonceRegistry });
+  assert.equal(legit.valid, true);
+});
+
+test('D6: consumeNonce:false allows audit re-validation of the same evidence', async () => {
+  const { snapshot } = await makeSnapshot();
+  const nonceRegistry = createInMemoryNonceRegistry();
+  const first = await verifySnapshot(snapshot, { verify: hmacVerifier(), nonceRegistry, consumeNonce: false });
+  const second = await verifySnapshot(snapshot, { verify: hmacVerifier(), nonceRegistry, consumeNonce: false });
+  assert.equal(first.valid, true);
+  assert.equal(second.valid, true);
+  assert.equal(await nonceRegistry.has(snapshot.nonce), false);
 });
