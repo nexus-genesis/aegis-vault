@@ -166,6 +166,16 @@ jobs:
                    packages/guardrail-x402 packages/guardrail-ap2 packages/registry-8004 \
                    packages/agent-keys-cli packages/agent-keys-mcp; do
             name=$(node -p "require('./' + process.argv[1] + '/package.json').name" "$p")
+            version=$(node -p "require('./' + process.argv[1] + '/package.json').version" "$p")
+            # Idempotent re-runs: after a partial release (e.g. the first
+            # package succeeded but the next one lacked a trusted publisher),
+            # replaying the tag must not 403 on "cannot publish over existing
+            # version" and abort the remaining packages.
+            if npm view "$name@$version" version > /dev/null 2>&1; then
+              echo "- ⏭️ \`$name@$version\` already on registry — skipped" >> "$GITHUB_STEP_SUMMARY"
+              echo "skip $name@$version (already published)"
+              continue
+            fi
             if ( cd "$p" && npm publish --provenance --access public ) > /tmp/pub-out.txt 2>&1; then
               echo "- ✅ \`$name\`" >> "$GITHUB_STEP_SUMMARY"
               cat /tmp/pub-out.txt
